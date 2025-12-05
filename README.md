@@ -1,2 +1,2 @@
 # CDX
-We Are
+We Are The Best Lol Script
