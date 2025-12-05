@@ -1,0 +1,353 @@
+-- CDX
+
+-- 繞過反作弊系統
+local function BypassAntiCheat()
+    local SafeEnv = {}
+    setmetatable(SafeEnv, {__index = getgenv()})
+    
+    SafeEnv.hookfunction = nil
+    SafeEnv.getconnections = nil
+    SafeEnv.getrawmetatable = nil
+    
+    local originalNamecall
+    originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        if method == "Kick" or method == "kick" then
+            return nil
+        end
+        return originalNamecall(self, ...)
+    end)
+    
+    local originalIndex
+    originalIndex = hookmetamethod(game, "__index", function(self, key)
+        if key == "Parent" and self == game then
+            return game
+        end
+        return originalIndex(self, key)
+    end)
+    
+    return SafeEnv
+end
+
+local SafeEnvironment = BypassAntiCheat()
+
+-- 獲取遊戲服務
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+-- 檢測平台
+local isMobile = UserInputService.TouchEnabled
+local isGamepad = UserInputService.GamepadEnabled
+
+-- 加載LinoriaLib
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/addons/SaveManager.lua"))()
+
+-- 創建主視窗
+local Window = Library:CreateWindow({
+    Title = "CDX",
+    Footer = isMobile and "移動端模式" or "PC模式",
+    Center = true,
+    AutoShow = true,
+    Resizable = not isMobile,
+    ShowCustomCursor = not isMobile,
+    TabPadding = isMobile and 10 or 8,
+    MenuFadeTime = 0.2
+})
+
+-- 初始化設定管理
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+ThemeManager:SetFolder("CDX_Hub_Mobile")
+SaveManager:SetFolder("CDX_Hub_Mobile/settings")
+
+-- ==============================================
+-- 主頁標籤頁
+-- ==============================================
+local HomeTab = Window:AddTab("主頁", "home")
+
+-- 創建分組框顯示信息
+local InfoSection = HomeTab:AddLeftGroupbox("系統信息", "info")
+
+-- 添加平台信息
+local platformText = isMobile and "移動端" or isGamepad and "手柄" or "PC"
+InfoSection:AddLabel("平台: " .. platformText)
+InfoSection:AddLabel("作者: LOL")
+InfoSection:AddLabel("版本: Dev开发阶段")
+
+-- 添加北京時間顯示
+local TimeLabel = InfoSection:AddLabel("時間: 加載中...")
+coroutine.wrap(function()
+    while task.wait(1) do
+        TimeLabel:SetText("時間: " .. os.date("%H:%M:%S"))
+    end
+end)()
+
+-- 玩家信息
+local PlayerSection = HomeTab:AddRightGroupbox("玩家信息", "user")
+PlayerSection:AddLabel("玩家: " .. LocalPlayer.Name)
+PlayerSection:AddLabel("ID: " .. LocalPlayer.UserId)
+
+-- 性能信息
+local StatsSection = HomeTab:AddLeftGroupbox("性能", "activity")
+local FPSLabel = StatsSection:AddLabel("FPS: --")
+coroutine.wrap(function()
+    local lastTime = tick()
+    local frames = 0
+    
+    while task.wait(0.1) do
+        frames = frames + 1
+        if tick() - lastTime >= 1 then
+            FPSLabel:SetText("FPS: " .. frames)
+            frames = 0
+            lastTime = tick()
+        end
+    end
+end)()
+
+-- ==============================================
+-- 戰鬥標籤頁 - 移動端優化
+-- ==============================================
+local CombatTab = Window:AddTab("戰鬥", "sword")
+
+-- 功能連接存儲
+local connections = {}
+local functionStates = {}
+
+-- 1. 自動攻擊功能 (移動端優化)
+local AutoAttackSection = CombatTab:AddLeftGroupbox("自動攻擊", "repeat")
+
+local autoAttackToggle = AutoAttackSection:AddToggle("AutoAttackEnabled", {
+    Text = "自動攻擊",
+    Default = false,
+    Tooltip = "自動攻擊最近的目標"
+})
+
+local attackTypeDropdown = AutoAttackSection:AddDropdown("AttackType", {
+    Values = {"近戰", "遠程"},
+    Default = 1,
+    Multi = false,
+    Text = "攻擊類型"
+})
+
+local attackDelaySlider = AutoAttackSection:AddSlider("AttackDelay", {
+    Text = "攻擊間隔(秒)",
+    Default = 1,
+    Min = 0.3,
+    Max = 3,
+    Rounding = 0.1
+})
+
+local attackRangeSlider = AutoAttackSection:AddSlider("AttackRange", {
+    Text = "攻擊範圍",
+    Default = 15,
+    Min = 5,
+    Max = 50,
+    Rounding = 1
+})
+
+-- 移動端攻擊按鈕
+local mobileAttackBtn = AutoAttackSection:AddButton("立即攻擊", function()
+    if not functionStates.autoAttackEnabled then return end
+    Library:Notify("執行攻擊...", 1)
+end)
+
+-- 自動攻擊功能實現
+local function startAutoAttack()
+    if connections.autoAttack then
+        connections.autoAttack:Disconnect()
+    end
+    
+    local lastAttackTime = 0
+    
+    connections.autoAttack = RunService.Heartbeat:Connect(function()
+        if not functionStates.autoAttackEnabled then return end
+        
+        local currentTime = tick()
+        local delay = attackDelaySlider.Value
+        
+        if currentTime - lastAttackTime >= delay then
+            lastAttackTime = currentTime
+            
+            local character = LocalPlayer.Character
+            if not character then return end
+            
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            if not humanoidRootPart then return end
+            
+            -- 尋找最近的目標
+            local nearestTarget = nil
+            local nearestDistance = attackRangeSlider.Value
+            
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    local targetChar = player.Character
+                    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+                    local targetHumanoid = targetChar:FindFirstChild("Humanoid")
+                    
+                    if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+                        local distance = (humanoidRootPart.Position - targetRoot.Position).Magnitude
+                        
+                        if distance < nearestDistance then
+                            nearestDistance = distance
+                            nearestTarget = player
+                        end
+                    end
+                end
+            end
+            
+            if nearestTarget then
+                local attackType = attackTypeDropdown.Value
+                Library:Notify(attackType .. "攻擊: " .. nearestTarget.Name, 1)
+            end
+        end
+    end)
+end
+
+autoAttackToggle:OnChanged(function(value)
+    functionStates.autoAttackEnabled = value
+    if value then
+        startAutoAttack()
+        Library:Notify("自動攻擊已啟用", 2)
+    elseif connections.autoAttack then
+        connections.autoAttack:Disconnect()
+        connections.autoAttack = nil
+        Library:Notify("自動攻擊已禁用", 2)
+    end
+end)
+
+-- 2. 自瞄功能 (移動端優化)
+local AimBotSection = CombatTab:AddRightGroupbox("自瞄功能", "crosshair")
+
+local aimBotToggle = AimBotSection:AddToggle("AimBotEnabled", {
+    Text = "啟用自瞄",
+    Default = false
+})
+
+local aimBotModeDropdown = AimBotSection:AddDropdown("AimBotMode", {
+    Values = {"函數自瞄", "AI自瞄"},
+    Default = 1,
+    Multi = false,
+    Text = "瞄準模式"
+})
+
+local aimBotFOVSlider = AimBotSection:AddSlider("AimFOV", {
+    Text = "瞄準範圍(FOV)",
+    Default = 60,
+    Min = 30,
+    Max = 120,
+    Rounding = 1
+})
+
+local aimBotTargetDropdown = AimBotSection:AddDropdown("AimTarget", {
+    Values = {"最近的敵人", "血量最低", "最近的NPC"},
+    Default = 1,
+    Multi = false,
+    Text = "目標選擇"
+})
+
+-- 自瞄功能實現
+local function startAimBot()
+    if connections.aimBot then
+        connections.aimBot:Disconnect()
+    end
+    
+    connections.aimBot = RunService.RenderStepped:Connect(function()
+        if not functionStates.aimBotEnabled then return end
+        
+        local character = LocalPlayer.Character
+        if not character then return end
+        
+        local camera = Workspace.CurrentCamera
+        if not camera then return end
+        
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if not humanoidRootPart then return end
+        
+        -- 尋找目標
+        local bestTarget = nil
+        local bestDistance = math.huge
+        local fov = aimBotFOVSlider.Value
+        
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local targetChar = player.Character
+                local targetHead = targetChar:FindFirstChild("Head")
+                local targetHumanoid = targetChar:FindFirstChild("Humanoid")
+                
+                if targetHead and targetHumanoid and targetHumanoid.Health > 0 then
+                    -- 計算屏幕位置
+                    local screenPoint, onScreen = camera:WorldToViewportPoint(targetHead.Position)
+                    
+                    if onScreen then
+                        local distance = (humanoidRootPart.Position - targetHead.Position).Magnitude
+                        local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+                        local screenDistance = (Vector2.new(screenPoint.X, screenPoint.Y) - screenCenter).Magnitude
+                        
+                        -- 檢查是否在FOV內
+                        if screenDistance < fov and distance < bestDistance then
+                            bestTarget = targetHead
+                            bestDistance = distance
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- 執行瞄準
+        if bestTarget then
+            local mode = aimBotModeDropdown.Value
+            local currentCFrame = camera.CFrame
+            local targetPosition = bestTarget.Position + Vector3.new(0, 1, 0)
+            
+            if mode == "函數自瞄" then
+                -- 平滑移動
+                local newCFrame = currentCFrame:Lerp(CFrame.new(camera.CFrame.Position, targetPosition), 0.1)
+                camera.CFrame = newCFrame
+            else
+                -- 快速瞄準
+                camera.CFrame = CFrame.new(camera.CFrame.Position, targetPosition)
+            end
+        end
+    end)
+end
+
+aimBotToggle:OnChanged(function(value)
+    functionStates.aimBotEnabled = value
+    if value then
+        startAimBot()
+        Library:Notify("自瞄已啟用", 2)
+    elseif connections.aimBot then
+        connections.aimBot:Disconnect()
+        connections.aimBot = nil
+        Library:Notify("自瞄已禁用", 2)
+    end
+end)
+
+-- ==============================================
+-- 保存和主題設置
+-- ==============================================
+
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({})
+
+-- 加載配置
+SaveManager:LoadAutoloadConfig()
+
+-- 卸載清理
+Library:OnUnload(function()
+    -- 斷開所有連接
+    for name, connection in pairs(connections) do
+        if connection then
+            pcall(function()
+                connection:Disconnect()
+            end)
+        end
+    end
+    
+    Library:Notify("CDX 已卸載", 3)
+end)
