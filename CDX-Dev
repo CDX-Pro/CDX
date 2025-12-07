@@ -110,12 +110,41 @@ local FOVEnabled = false
 local FOVValue = 70
 local WideAngleEnabled = false
 local WideAngleValue = 90
+local NoclipEnabled = false
+local InfiniteJumpEnabled = false
+local AutoPromoteEnabled = false
+local HealthRegenEnabled = false
 local DefaultFOV = 70  -- 默認視野值
+
+-- 自動攻擊相關變量
+local AutoAttackEnabled = false
+local AutoAttackRunning = false
+local AutoAttackConfig = nil
 
 -- 保存原始值
 local OriginalWalkSpeed = 16
 local OriginalJumpPower = 50
 local OriginalFOV = DefaultFOV
+
+-- 穿牆相關變量
+local NoclipConnection = nil
+local OriginalCollisions = {}
+local LastNoclipCheck = 0
+local NoclipCheckInterval = 0.1
+
+-- 無限跳相關變量
+local InfiniteJumpConnection = nil
+local JumpKey = Enum.KeyCode.Space
+local LastJumpTime = 0
+local JumpCooldown = 0.2
+
+-- 自動宣傳相關變量
+local AutoPromoteConnection = nil
+local AutoPromoteRunning = false
+
+-- 生命恢復相關變量
+local HealthRegenLoop = nil
+local HFLoop = false
 
 -- 通用左側欄
 local GeneralLeftSection = GeneralTab:DrawSection({
@@ -203,6 +232,112 @@ local JumpSlider = GeneralLeftSection:AddSlider({
         print("跳躍高度設定為: " .. value)
         if JumpEnabled then
             ApplyJump()
+        end
+    end
+});
+
+-- 穿牆功能
+local NoclipToggle = GeneralLeftSection:AddToggle({
+    Name = "穿牆模式",
+    Flag = "Noclip_Toggle",
+    Default = false,
+    Callback = function(state)
+        NoclipEnabled = state
+        if state then
+            Notifier.new({
+                Title = "提示",
+                Content = "穿牆模式已啟用",
+                Duration = 2,
+                Icon = "rbxassetid://120245531583106"
+            });
+            StartNoclip()
+        else
+            Notifier.new({
+                Title = "提示",
+                Content = "穿牆模式已禁用",
+                Duration = 2,
+                Icon = "rbxassetid://120245531583106"
+            });
+            StopNoclip()
+            RestoreCollisions()
+        end
+    end,
+});
+
+-- 無限跳功能
+local InfiniteJumpToggle = GeneralLeftSection:AddToggle({
+    Name = "無限跳躍",
+    Flag = "InfiniteJump_Toggle",
+    Default = false,
+    Callback = function(state)
+        InfiniteJumpEnabled = state
+        if state then
+            Notifier.new({
+                Title = "提示",
+                Content = "無限跳躍已啟用",
+                Duration = 2,
+                Icon = "rbxassetid://120245531583106"
+            });
+            StartInfiniteJump()
+        else
+            Notifier.new({
+                Title = "提示",
+                Content = "無限跳躍已禁用",
+                Duration = 2,
+                Icon = "rbxassetid://120245531583106"
+            });
+            StopInfiniteJump()
+        end
+    end,
+});
+
+-- 循環恢復生命
+local HealthRegenToggle = GeneralLeftSection:AddToggle({
+    Name = "循環恢復生命",
+    Flag = "HealthRegen_Toggle",
+    Default = false,
+    Callback = function(state)
+        HealthRegenEnabled = state
+        if state then
+            Notifier.new({
+                Title = "提示",
+                Content = "循環恢復生命已啟用",
+                Duration = 2,
+                Icon = "rbxassetid://120245531583106"
+            });
+            StartHealthRegen()
+        else
+            Notifier.new({
+                Title = "提示",
+                Content = "循環恢復生命已禁用",
+                Duration = 2,
+                Icon = "rbxassetid://120245531583106"
+            });
+            StopHealthRegen()
+        end
+    end,
+});
+
+-- 自動宣傳功能
+GeneralLeftSection:AddButton({
+    Name = "自動宣傳",
+    Callback = function()
+        if AutoPromoteRunning then
+            StopAutoPromote()
+            Notifier.new({
+                Title = "提示",
+                Content = "自動宣傳已停止",
+                Duration = 3,
+                Icon = "rbxassetid://120245531583106"
+            });
+        else
+            StartAutoPromote()
+            Notifier.new({
+                Title = "提示",
+                Content = "自動宣傳已啟動",
+                Duration = 3,
+                Icon = "rbxassetid://120245531583106"
+            });
         end
     end
 });
@@ -297,10 +432,43 @@ local WideAngleSlider = GeneralRightSection:AddSlider({
     end
 });
 
+-- 自動攻擊功能
+local AttackSection = GeneralTab:DrawSection({
+    Name = "自動攻擊",
+    Position = 'right'
+});
+
+-- 自動攻擊開關
+local AutoAttackToggle = AttackSection:AddToggle({
+    Name = "自動攻擊",
+    Flag = "AutoAttack_Toggle",
+    Default = false,
+    Callback = function(state)
+        AutoAttackEnabled = state
+        if state then
+            Notifier.new({
+                Title = "提示",
+                Content = "自動攻擊已啟用",
+                Duration = 2,
+                Icon = "rbxassetid://120245531583106"
+            });
+            StartAutoAttack()
+        else
+            Notifier.new({
+                Title = "提示",
+                Content = "自動攻擊已禁用",
+                Duration = 2,
+                Icon = "rbxassetid://120245531583106"
+            });
+            StopAutoAttack()
+        end
+    end,
+});
+
 -- 添加說明
 GeneralRightSection:AddParagraph({
     Title = "使用說明",
-    Content = "啟用開關後可調整對應數值\n設定會自動保存"
+    Content = "穿牆模式：無視牆壁和障礙物移動\n無限跳躍：在空中也能連續跳躍\n循環恢復生命：保持生命值為最高\n自動宣傳：自動發送宣傳訊息\n自動攻擊：自動攻擊附近敵人\n啟用開關後可調整對應數值"
 });
 
 -- 創建ESP標籤頁
@@ -675,6 +843,486 @@ end
 function ApplyWideAngle()
     ApplyFOV()
 end
+
+-- ====================================================================
+-- 穿牆功能函數
+-- ====================================================================
+
+function StartNoclip()
+    if NoclipConnection then
+        NoclipConnection:Disconnect()
+    end
+    
+    NoclipConnection = game:GetService("RunService").Stepped:Connect(function()
+        if not NoclipEnabled then
+            StopNoclip()
+            return
+        end
+        
+        local player = game.Players.LocalPlayer
+        if player and player.Character then
+            local currentTime = tick()
+            
+            -- 定期檢查，避免過度頻繁的操作
+            if currentTime - LastNoclipCheck > NoclipCheckInterval then
+                LastNoclipCheck = currentTime
+                
+                for _, part in pairs(player.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        -- 保存原始碰撞狀態（如果還沒保存）
+                        if not OriginalCollisions[part] then
+                            OriginalCollisions[part] = part.CanCollide
+                        end
+                        
+                        -- 設置為無碰撞
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end
+    end)
+    
+    print("穿牆模式已啟動")
+end
+
+function StopNoclip()
+    if NoclipConnection then
+        NoclipConnection:Disconnect()
+        NoclipConnection = nil
+    end
+    
+    print("穿牆模式已停止")
+end
+
+function RestoreCollisions()
+    for part, canCollide in pairs(OriginalCollisions) do
+        if part and part.Parent then
+            pcall(function()
+                part.CanCollide = canCollide
+            end)
+        end
+    end
+    OriginalCollisions = {}
+    
+    print("碰撞已恢復")
+end
+
+-- ====================================================================
+-- 無限跳功能函數
+-- ====================================================================
+
+function StartInfiniteJump()
+    if InfiniteJumpConnection then
+        InfiniteJumpConnection:Disconnect()
+    end
+    
+    InfiniteJumpConnection = game:GetService("UserInputService").JumpRequest:Connect(function()
+        if not InfiniteJumpEnabled then
+            StopInfiniteJump()
+            return
+        end
+        
+        local player = game.Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                local currentTime = tick()
+                
+                -- 冷卻時間檢查，避免過度頻繁的跳躍
+                if currentTime - LastJumpTime > JumpCooldown then
+                    LastJumpTime = currentTime
+                    
+                    -- 強制跳躍
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+        end
+    end)
+    
+    print("無限跳躍已啟動")
+end
+
+function StopInfiniteJump()
+    if InfiniteJumpConnection then
+        InfiniteJumpConnection:Disconnect()
+        InfiniteJumpConnection = nil
+    end
+    
+    print("無限跳躍已停止")
+end
+
+-- ====================================================================
+-- 循環恢復生命功能函數
+-- ====================================================================
+
+function StartHealthRegen()
+    if HealthRegenLoop then
+        return
+    end
+    
+    HFLoop = true
+    HealthRegenLoop = task.spawn(function()
+        while HFLoop and HealthRegenEnabled do
+            local lp = game.Players.LocalPlayer
+            if lp then
+                local character = lp.Character
+                if character then
+                    local hum = character:FindFirstChildWhichIsA("Humanoid")
+                    if hum and hum.Parent then
+                        pcall(function()
+                            hum.Health = 9000000000
+                        end)
+                    end
+                end
+            end
+            task.wait(0.5)
+        end
+        HealthRegenLoop = nil
+    end)
+    
+    print("循環恢復生命已啟動")
+end
+
+function StopHealthRegen()
+    HFLoop = false
+    if HealthRegenLoop then
+        task.cancel(HealthRegenLoop)
+        HealthRegenLoop = nil
+    end
+    
+    print("循環恢復生命已停止")
+end
+
+-- ====================================================================
+-- 自動宣傳功能函數
+-- ====================================================================
+
+function StartAutoPromote()
+    if AutoPromoteRunning then return end
+    
+    AutoPromoteRunning = true
+    AutoPromoteEnabled = true
+    
+    -- 在後台運行自動宣傳
+    task.spawn(function()
+        local Players = game:GetService("Players")
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local TextChatService = (pcall(function() return game:GetService("TextChatService") end) and game:GetService("TextChatService")) or nil
+
+        local AUTO_CHAT_MSG = "CDX最佳脚本，功能有修改速度，自动发言，esp等等"
+        local CHAT_INTERVAL = 1.5
+
+        local function tryTextChatSend(message)
+            if not TextChatService then return false end
+            local ok = false
+            pcall(function()
+                if TextChatService.TextChannels then
+                    local ch = TextChatService.TextChannels:FindFirstChild("RBXGeneral") or TextChatService.TextChannels:FindFirstChild("RBXGeneralChannel")
+                    if ch and ch.SendAsync then
+                        ch:SendAsync(message)
+                        ok = true
+                    end
+                end
+            end)
+            return ok
+        end
+
+        local function tryOldChatSend(message)
+            local ok = false
+            pcall(function()
+                local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+                if chatEvents then
+                    local SayMessageRequest = chatEvents:FindFirstChild("SayMessageRequest")
+                    if SayMessageRequest then
+                        SayMessageRequest:FireServer(message, "All")
+                        ok = true
+                    end
+                end
+            end)
+            return ok
+        end
+
+        local function tryPlayerChat(message)
+            local ok = false
+            pcall(function()
+                local pl = Players.LocalPlayer
+                if pl and pl.Chat then
+                    pl:Chat(message)
+                    ok = true
+                end
+            end)
+            return ok
+        end
+
+        local function sendSilentMessage()
+            if not Players.LocalPlayer then return false end
+            
+            local msg = tostring(AUTO_CHAT_MSG or "")
+            if msg == "" then return false end
+            
+            local sent = false
+            pcall(function() sent = tryTextChatSend(msg) or sent end)
+            if not sent then pcall(function() sent = tryOldChatSend(msg) or sent end) end
+            if not sent then pcall(function() sent = tryPlayerChat(msg) or sent end) end
+            
+            return sent
+        end
+
+        if not Players.LocalPlayer then
+            Players.PlayerAdded:Wait()
+        end
+        wait(1.5)
+
+        -- 發送第一條訊息
+        pcall(sendSilentMessage)
+        print("自動宣傳：第一條訊息已發送")
+
+        -- 循環發送訊息
+        while AutoPromoteEnabled do
+            wait(CHAT_INTERVAL)
+            pcall(sendSilentMessage)
+            print("自動宣傳：訊息已發送")
+        end
+        
+        print("自動宣傳：循環已結束")
+        AutoPromoteRunning = false
+    end)
+    
+    print("自動宣傳已啟動")
+end
+
+function StopAutoPromote()
+    AutoPromoteEnabled = false
+    AutoPromoteRunning = false
+    
+    print("自動宣傳已停止")
+end
+
+-- ====================================================================
+-- 自動攻擊功能函數
+-- ====================================================================
+
+function StartAutoAttack()
+    if AutoAttackRunning then
+        return
+    end
+    
+    AutoAttackRunning = true
+    
+    -- 保存原始全局配置（如果有）
+    local oldConfigs = getgenv().configs
+    
+    -- 清理舊的配置
+    if oldConfigs then
+        local disableEvent = oldConfigs.Disable
+        if disableEvent then
+            pcall(function()
+                disableEvent:Fire()
+                disableEvent:Destroy()
+            end)
+        end
+        
+        local connections = oldConfigs.connections
+        if connections then
+            for _, connection in pairs(connections) do
+                pcall(function()
+                    connection:Disconnect()
+                end)
+            end
+            table.clear(connections)
+        end
+        table.clear(oldConfigs)
+    end
+    
+    -- 創建新的配置
+    local disableEvent = Instance.new("BindableEvent")
+    getgenv().configs = {
+        connections = {},
+        Disable = disableEvent,
+        Size = Vector3.new(10, 10, 10),
+        DeathCheck = true,
+    }
+    
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local LocalPlayer = Players.LocalPlayer
+    
+    local isActive = true
+    
+    local overlapParams = OverlapParams.new()
+    overlapParams.FilterType = Enum.RaycastFilterType.Include
+    
+    -- 獲取角色函數
+    local function getCharacter(player)
+        if not player then
+            player = LocalPlayer
+        end
+        if player and player.Character then
+            return player.Character
+        end
+        return nil
+    end
+    
+    -- 安全獲取Humanoid函數
+    local function getHumanoid(target)
+        if not target then
+            return nil
+        end
+        
+        local candidate = target
+        
+        if type(candidate) == "userdata" and candidate.IsA then
+            if candidate:IsA("Player") then
+                candidate = getCharacter(candidate)
+            end
+            
+            if candidate and type(candidate) == "userdata" and candidate.IsA then
+                if candidate:IsA("Model") then
+                    return candidate:FindFirstChildWhichIsA("Humanoid") or candidate:FindFirstChild("Humanoid")
+                elseif candidate:IsA("Humanoid") then
+                    return candidate
+                end
+            end
+        end
+        
+        return nil
+    end
+    
+    -- 檢查是否存活函數
+    local function isAlive(humanoid)
+        return humanoid and humanoid.Health > 0
+    end
+    
+    -- 檢查是否有接觸傳輸器函數
+    local function hasTouchTransmitter(part)
+        return part and part:FindFirstChildWhichIsA("TouchTransmitter", true)
+    end
+    
+    -- 獲取所有其他玩家角色函數
+    local function getOtherCharacters(character)
+        local characters = {}
+        for _, player in pairs(Players:GetPlayers()) do
+            local playerCharacter = getCharacter(player)
+            if playerCharacter then
+                table.insert(characters, playerCharacter)
+            end
+        end
+        
+        for i, char in pairs(characters) do
+            if char == character then
+                table.remove(characters, i)
+                break
+            end
+        end
+        
+        return characters
+    end
+    
+    -- 觸發攻擊函數
+    local function triggerAttack(tool, weaponPart, targetPart)
+        if tool:IsDescendantOf(workspace) then
+            -- 激活工具
+            pcall(function()
+                tool:Activate()
+            end)
+            
+            -- 使用firetouchinterest進行攻擊
+            pcall(function()
+                firetouchinterest(weaponPart, targetPart, 1)
+                firetouchinterest(weaponPart, targetPart, 0)
+            end)
+        end
+    end
+    
+    -- 添加停止事件監聽
+    table.insert(getgenv().configs.connections, disableEvent.Event:Connect(function()
+        isActive = false
+    end))
+    
+    -- 主攻擊循環
+    task.spawn(function()
+        while isActive and AutoAttackEnabled do
+            local character = getCharacter()
+            local humanoid = getHumanoid(character)
+            
+            if isAlive(humanoid) then
+                local tool = character and character:FindFirstChildWhichIsA("Tool")
+                local weaponPart = tool and hasTouchTransmitter(tool)
+                
+                if weaponPart then
+                    local weaponPartParent = weaponPart.Parent
+                    local otherCharacters = getOtherCharacters(character)
+                    
+                    overlapParams.FilterDescendantsInstances = otherCharacters
+                    
+                    for _, part in pairs(workspace:GetPartBoundsInBox(
+                        weaponPartParent.CFrame,
+                        weaponPartParent.Size + getgenv().configs.Size,
+                        overlapParams
+                    )) do
+                        local targetCharacter = part:FindFirstAncestorWhichIsA("Model")
+                        
+
+if table.find(otherCharacters, targetCharacter) then
+                            local targetHumanoid = getHumanoid(targetCharacter)
+                            
+                            if getgenv().configs.DeathCheck then
+                                if isAlive(targetHumanoid) then
+                                    triggerAttack(tool, weaponPartParent, part)
+                                end
+                            else
+                                triggerAttack(tool, weaponPartParent, part)
+                            end
+                        end
+                    end
+                end
+            end
+            
+            RunService.Heartbeat:Wait()
+        end
+        
+        AutoAttackRunning = false
+        print("自動攻擊已停止")
+    end)
+    
+    print("自動攻擊已啟動")
+end
+
+function StopAutoAttack()
+    if not AutoAttackRunning then
+        return
+    end
+    
+    local configs = getgenv().configs
+    if configs then
+        local disableEvent = configs.Disable
+        if disableEvent then
+            pcall(function()
+                disableEvent:Fire()
+                disableEvent:Destroy()
+            end)
+        end
+        
+        local connections = configs.connections
+        if connections then
+            for _, connection in pairs(connections) do
+                pcall(function()
+                    connection:Disconnect()
+                end)
+            end
+            table.clear(connections)
+        end
+        table.clear(configs)
+    end
+    
+    AutoAttackRunning = false
+    AutoAttackEnabled = false
+    print("自動攻擊已停止")
+end
+
+-- ====================================================================
+-- ESP函數定義
+-- ====================================================================
 
 -- 清除所有ESP
 function ClearAllEsp()
@@ -1120,6 +1768,10 @@ function UpdateBox3DEsp()
     end
 end
 
+-- ====================================================================
+-- 主循環和初始化
+-- ====================================================================
+
 -- 通用功能循環
 task.spawn(function()
     while true do
@@ -1142,6 +1794,44 @@ game.Players.LocalPlayer.CharacterAdded:Connect(function(character)
     -- 重新應用設定
     ApplySpeed()
     ApplyJump()
+    
+    -- 如果穿牆啟用，重新啟動穿牆
+    if NoclipEnabled then
+        wait(0.5) -- 等待角色完全生成
+        StartNoclip()
+    end
+    
+    -- 如果生命恢復啟用，重新啟動生命恢復
+    if HealthRegenEnabled then
+        wait(0.5) -- 等待角色完全生成
+        StartHealthRegen()
+    end
+    
+    -- 如果自動攻擊啟用，重新啟動自動攻擊
+    if AutoAttackEnabled then
+        wait(0.5) -- 等待角色完全生成
+        StartAutoAttack()
+    end
+    
+    -- 如果ESP啟用，重新啟動ESP
+    if EspEnabled then
+        wait(0.5) -- 等待角色完全生成
+        StartEspLoop()
+    end
+end)
+
+-- 角色移除時監聽
+game.Players.LocalPlayer.CharacterRemoving:Connect(function(character)
+    -- 如果穿牆啟用，停止穿牆
+    if NoclipEnabled then
+        StopNoclip()
+        RestoreCollisions()
+    end
+    
+    -- 如果自動攻擊啟用，停止自動攻擊
+    if AutoAttackEnabled then
+        StopAutoAttack()
+    end
 end)
 
 -- 初始化時獲取原始值
@@ -1166,3 +1856,5 @@ print("CDX Universal UI framework initialized successfully!");
 print("Device: " .. deviceType);
 print("Press LeftAlt to open the interface");
 print("Supports both Mobile and PC devices");
+print("Features: Speed, Jump, FOV, Noclip, Infinite Jump, Health Regen, Auto Promote, Auto Attack, ESP");
+print("Author: LOL | Co-author: 心情 | Status: Dev");
