@@ -1,0 +1,424 @@
+-- 腳本名稱：CX
+-- 動畫播放器 by LOL
+
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+
+WindUI:Localization({
+    Enabled = true,
+    Prefix = "loc:",
+    DefaultLanguage = "en",
+    Translations = {
+        ["ru"] = {
+            ["WINDUI_EXAMPLE"] = "WindUI Пример",
+            ["WELCOME"] = "Добро пожаловать в WindUI!",
+            ["LIB_DESC"] = "Библиотека для создания красивых интерфейсов",
+            ["SETTINGS"] = "Настройки",
+            ["APPEARANCE"] = "Внешний вид",
+            ["FEATURES"] = "Функционал",
+            ["UTILITIES"] = "Инструменты",
+            ["UI_ELEMENTS"] = "UI Элементы",
+            ["CONFIGURATION"] = "Конфигурация",
+            ["SAVE_CONFIG"] = "Сохранить конфигурацию",
+            ["LOAD_CONFIG"] = "Загрузить конфигурацию",
+            ["THEME_SELECT"] = "Выберите тему",
+            ["TRANSPARENCY"] = "Прозрачность окна"
+        },
+        ["en"] = {
+            ["WINDUI_EXAMPLE"] = "WindUI Example",
+            ["WELCOME"] = "Welcome to WindUI!",
+            ["LIB_DESC"] = "Beautiful UI library for Roblox",
+            ["SETTINGS"] = "Settings",
+            ["APPEARANCE"] = "Appearance",
+            ["FEATURES"] = "Features",
+            ["UTILITIES"] = "Utilities",
+            ["UI_ELEMENTS"] = "UI Elements",
+            ["CONFIGURATION"] = "Configuration",
+            ["SAVE_CONFIG"] = "Save Configuration",
+            ["LOAD_CONFIG"] = "Load Configuration",
+            ["THEME_SELECT"] = "Select Theme",
+            ["TRANSPARENCY"] = "Window Transparency"
+        }
+    }
+})
+
+WindUI.TransparencyValue = 0.2
+WindUI:SetTheme("Crimson")
+
+local function gradient(text, startColor, endColor)
+    local result = ""
+    for i = 1, #text do
+        local t = (i - 1) / (#text - 1)
+        local r = math.floor((startColor.R + (endColor.R - startColor.R) * t) * 255)
+        local g = math.floor((startColor.G + (endColor.G - startColor.G) * t) * 255)
+        local b = math.floor((startColor.B + (endColor.B - startColor.B) * t) * 255)
+        result = result .. string.format('<font color="rgb(%d,%d,%d)">%s</font>', r, g, b, text:sub(i, i))
+    end
+    return result
+end
+
+WindUI:Popup({
+    Title = gradient("CX Animation Player", Color3.fromHex("#6A11CB"), Color3.fromHex("#2575FC")),
+    Icon = "sparkles",
+    Content = "CX已加載",
+    Buttons = {
+        {
+            Title = "開始使用",
+            Icon = "arrow-right",
+            Variant = "Primary",
+            Callback = function() end
+        }
+    }
+})
+
+-- 獲取玩家信息
+local player = game.Players.LocalPlayer
+local playerName = player.Name
+local playerDisplayName = player.DisplayName
+local playerUserId = player.UserId
+
+local Window = WindUI:CreateWindow({
+    Title = "CX",
+    Icon = "video",
+    Author = "LOL",
+    Folder = "CX_AnimationPlayer",
+    Size = UDim2.fromOffset(700, 500),
+    Theme = "Crimson",
+    -- Background = WindUI:Gradient({
+    --     ["0"] = { Color = Color3.fromHex("#0f0c29"), Transparency = 1 },
+    --     ["100"] = { Color = Color3.fromHex("#302b63"), Transparency = 0.9 },
+    -- }, {
+    --     Rotation = 45,
+    -- }),
+    --Background = "video:https://cdn.discordapp.com/attachments/1337368451865645096/1402703845657673878/VID_20250616_180732_158.webm?ex=68958a01&is=68943881&hm=164c5b04d1076308b38055075f7eb0653c1d73bec9bcee08e918a31321fe3058&",
+    User = {
+        Enabled = true,
+        Anonymous = false, -- 設置為false以顯示玩家信息
+        UserId = playerUserId, -- 設置玩家ID
+        Name = playerDisplayName, -- 顯示名稱
+        Callback = function()
+            WindUI:Notify({
+                Title = "玩家信息",
+                Content = "名稱: " .. playerDisplayName .. "\n用戶名: " .. playerName .. "\n用戶ID: " .. playerUserId,
+                Duration = 5,
+                Icon = "user"
+            })
+        end
+    },
+    SideBarWidth = 220,
+    ScrollBarEnabled = true
+})
+
+Window:Tag({
+    Title = "CX",
+    Color = Color3.fromHex("#30ff6a")
+})
+Window:Tag({
+    Title = "動畫播放器",
+    Color = Color3.fromHex("#ff6a30")
+})
+
+Window:CreateTopbarButton("theme-switcher", "moon", function()
+    WindUI:SetTheme(WindUI:GetCurrentTheme() == "Crimson" and "Light" or "Crimson")
+    WindUI:Notify({
+        Title = "主題已變更",
+        Content = "當前主題："..WindUI:GetCurrentTheme(),
+        Duration = 2
+    })
+end, 990)
+
+-- 創建動畫標籤頁
+local AnimationSection = Window:Section({ Title = "動畫", Opened = true })
+local AnimationTab = AnimationSection:Tab({ Title = "動畫列表", Icon = "play" })
+
+-- 保存動畫追蹤器的變數
+local currentAnimationTrack = nil
+local currentAnimationName = nil
+
+-- 動畫資料庫 - 新增 Hey Now Boombox 動畫
+local AnimationsDB = {
+    ["Otsukare Summer"] = "rbxassetid://102662583709770",
+    ["All Might Victory Pose"] = "rbxassetid://117016493051161",
+    ["Effortless Aura Pose"] = "rbxassetid://133418516499878",
+    ["Tenna Dance"] = "rbxassetid://75202452138001",
+    ["Happy Halloween Junky Dance"] = "rbxassetid://120989818140485",
+    ["Spooky month dance"] = "rbxassetid://83102026062408",
+    ["Rat Dance"] = "rbxassetid://119386711855761",
+    ["BirdBrain"] = "rbxassetid://92936292836118",
+    ["Hakari Dance"] = "rbxassetid://113816470307293",
+    ["Caramelldansen"] = "rbxassetid://130303577962887",
+    ["Kazotsky Kick"] = "rbxassetid://117891351941500",
+    ["Come At Me…"] = "rbxassetid://84961998273178",
+    ["I Want Money"] = "rbxassetid://115781688996859",
+    ["Mesmerizer"] = "rbxassetid://110947052366036",
+    ["Jumpstyle dance"] = "rbxassetid://112773902133223",
+    ["Bag Up"] = "rbxassetid://88570432473654",
+    ["Druski Dance"] = "rbxassetid://87033513223989",
+    ["HONORED ONE"] = "rbxassetid://139882338804789",
+    ["Hey Now Boombox"] = "rbxassetid://72980920405561", -- 新增動畫
+    ["Califorina Girls"] = "rbxassetid://76389296606994", -- 新增動畫
+    ["Metro Man"] = "rbxassetid://79481824762169" -- 新增動畫
+}
+
+-- 為了保持按鈕順序，我們使用一個數組來定義順序
+local animationOrder = {
+    "Otsukare Summer",
+    "All Might Victory Pose",
+    "Effortless Aura Pose",
+    "Tenna Dance",
+    "Happy Halloween Junky Dance",
+    "Spooky month dance",
+    "Rat Dance",
+    "BirdBrain",
+    "Hakari Dance",
+    "Caramelldansen",
+    "Kazotsky Kick",
+    "Come At Me…",
+    "I Want Money",
+    "Mesmerizer",
+    "Jumpstyle dance",
+    "Bag Up",
+    "Druski Dance",
+    "HONORED ONE",
+    "Hey Now Boombox", -- 新增動畫順序
+    "Califorina Girls", -- 新增動畫順序
+    "Metro Man" -- 新增動畫順序
+}
+
+-- 按照順序添加動畫播放/停止按鈕
+for _, animationName in ipairs(animationOrder) do
+    local animationId = AnimationsDB[animationName]
+    AnimationTab:Button({
+        Title = animationName,
+        Icon = "play-circle",
+        Callback = function()
+            if currentAnimationName == animationName and currentAnimationTrack then
+                -- 停止當前動畫
+                currentAnimationTrack:Stop()
+                currentAnimationTrack = nil
+                currentAnimationName = nil
+                
+                WindUI:Notify({
+                    Title = "動畫停止",
+                    Content = "已停止播放：" .. animationName,
+                    Icon = "stop-circle",
+                    Duration = 3
+                })
+            else
+                -- 停止之前的動畫（如果有的話）
+                if currentAnimationTrack then
+                    currentAnimationTrack:Stop()
+                    currentAnimationTrack = nil
+                end
+                
+                -- 獲取玩家角色
+                local player = game.Players.LocalPlayer
+                local character = player.Character
+                
+                if not character then
+                    character = player.CharacterAdded:Wait()
+                end
+                
+                local humanoid = character:WaitForChild("Humanoid")
+                
+                if humanoid then
+                    -- 創建並播放新動畫
+                    local animation = Instance.new("Animation")
+                    animation.AnimationId = animationId
+                    
+                    currentAnimationTrack = humanoid:LoadAnimation(animation)
+                    currentAnimationTrack:Play()
+                    currentAnimationName = animationName
+                    
+                    WindUI:Notify({
+                        Title = "動畫播放",
+                        Content = "正在播放：" .. animationName,
+                        Icon = "play-circle",
+                        Duration = 3
+                    })
+                    
+                    -- 監聽動畫完成事件
+                    currentAnimationTrack.Stopped:Connect(function()
+                        if currentAnimationName == animationName then
+                            currentAnimationTrack = nil
+                            currentAnimationName = nil
+                        end
+                    end)
+                else
+                    WindUI:Notify({
+                        Title = "錯誤",
+                        Content = "找不到人類物件",
+                        Icon = "x",
+                        Duration = 3
+                    })
+                end
+            end
+        end
+    })
+end
+
+AnimationTab:Divider()
+
+-- 添加停止所有動畫的按鈕
+AnimationTab:Button({
+    Title = "停止所有動畫",
+    Icon = "stop-circle",
+    Variant = "Destructive",
+    Callback = function()
+        -- 停止當前動畫
+        if currentAnimationTrack then
+            currentAnimationTrack:Stop()
+            currentAnimationTrack = nil
+            currentAnimationName = nil
+            
+            WindUI:Notify({
+                Title = "所有動畫已停止",
+                Content = "已停止所有正在播放的動畫",
+                Icon = "stop-circle",
+                Duration = 3
+            })
+        else
+            WindUI:Notify({
+                Title = "沒有動畫播放",
+                Content = "目前沒有正在播放的動畫",
+                Icon = "info",
+                Duration = 3
+            })
+        end
+    end
+})
+
+-- 添加重新加載角色按鈕
+AnimationTab:Button({
+    Title = "重新加載角色",
+    Icon = "refresh-cw",
+    Variant = "Secondary",
+    Callback = function()
+        local player = game.Players.LocalPlayer
+        
+        -- 停止當前動畫
+        if currentAnimationTrack then
+            currentAnimationTrack:Stop()
+            currentAnimationTrack = nil
+            currentAnimationName = nil
+        end
+        
+        -- 重新加載角色
+        player:LoadCharacter()
+        
+        WindUI:Notify({
+            Title = "角色已重新加載",
+            Content = "角色已重置，動畫已停止",
+            Icon = "refresh-cw",
+            Duration = 3
+        })
+    end
+})
+
+AnimationTab:Paragraph({
+    Title = "CX",
+    Desc = "點擊動畫按鈕切換播放/停止狀態\n同時只能播放一個動畫",
+    Image = "video",
+    ImageSize = 20,
+    Color = "White"
+})
+
+-- 狀態顯示
+AnimationTab:Paragraph({
+    Title = "當前狀態",
+    Desc = function()
+        if currentAnimationName then
+            return "正在播放：" .. currentAnimationName
+        else
+            return "沒有動畫播放"
+        end
+    end,
+    Image = "activity",
+    ImageSize = 20,
+    Color = function()
+        if currentAnimationName then
+            return Color3.fromRGB(46, 204, 113) -- 綠色
+        else
+            return Color3.fromRGB(149, 165, 166) -- 灰色
+        end
+    end
+})
+
+-- 確保窗口顯示
+if Window then
+    -- 如果有顯示方法，調用它
+    if Window.Show then
+        Window:Show()
+    elseif Window.SetVisible then
+        Window:SetVisible(true)
+    end
+    
+    -- 發送通知表示UI已加載
+    task.wait(1)
+    WindUI:Notify({
+        Title = "CX",
+        Content = "腳本已成功加載！\n玩家: " .. playerDisplayName,
+        Icon = "check",
+        Duration = 3
+    })
+end
+
+Window:OnClose(function()
+    print("視窗已關閉")
+    -- 關閉窗口時停止所有動畫
+    if currentAnimationTrack then
+        currentAnimationTrack:Stop()
+        currentAnimationTrack = nil
+        currentAnimationName = nil
+    end
+end)
+
+Window:OnDestroy(function()
+    print("視窗已銷毀")
+    -- 銷毀窗口時停止所有動畫
+    if currentAnimationTrack then
+        currentAnimationTrack:Stop()
+        currentAnimationTrack = nil
+        currentAnimationName = nil
+    end
+end)
+
+-- 角色死亡時停止動畫
+game.Players.LocalPlayer.CharacterAdded:Connect(function(character)
+    character:WaitForChild("Humanoid").Died:Connect(function()
+        if currentAnimationTrack then
+            currentAnimationTrack:Stop()
+            currentAnimationTrack = nil
+            currentAnimationName = nil
+        end
+    end)
+end)
+
+-- 添加一個快捷鍵來打開/關閉UI
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed then
+        if input.KeyCode == Enum.KeyCode.RightControl then
+            if Window then
+                if Window.Visible then
+                    Window:Hide()
+                    WindUI:Notify({
+                        Title = "CX",
+                        Content = "UI已隱藏",
+                        Icon = "eye-off",
+                        Duration = 2
+                    })
+                else
+                    Window:Show()
+                    WindUI:Notify({
+                        Title = "CX",
+                        Content = "UI已顯示",
+                        Icon = "eye",
+                        Duration = 2
+                    })
+                end
+            end
+        end
+    end
+end)
+
+print("CX Animation Player 已加載完成")
+print("玩家: " .. playerName .. " (" .. playerDisplayName .. ")")
