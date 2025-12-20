@@ -57,7 +57,7 @@ local function gradient(text, startColor, endColor)
 end
 
 WindUI:Popup({
-    Title = gradient("CX Animation Player", Color3.fromHex("#6A11CB"), Color3.fromHex("#2575FC")),
+    Title = gradient("CX", Color3.fromHex("#6A11CB"), Color3.fromHex("#2575FC")),
     Icon = "sparkles",
     Content = "CX已加載",
     Buttons = {
@@ -80,7 +80,7 @@ local Window = WindUI:CreateWindow({
     Title = "CX",
     Icon = "video",
     Author = "LOL",
-    Folder = "CX_AnimationPlayer",
+    Folder = "CX",
     Size = UDim2.fromOffset(700, 500),
     Theme = "Crimson",
     -- Background = WindUI:Gradient({
@@ -111,10 +111,6 @@ local Window = WindUI:CreateWindow({
 Window:Tag({
     Title = "CX",
     Color = Color3.fromHex("#30ff6a")
-})
-Window:Tag({
-    Title = "動畫播放器",
-    Color = Color3.fromHex("#ff6a30")
 })
 
 Window:CreateTopbarButton("theme-switcher", "moon", function()
@@ -156,7 +152,8 @@ local AnimationsDB = {
     ["HONORED ONE"] = "rbxassetid://139882338804789",
     ["Hey Now Boombox"] = "rbxassetid://72980920405561", -- 新增動畫
     ["Califorina Girls"] = "rbxassetid://76389296606994", -- 新增動畫
-    ["Metro Man"] = "rbxassetid://79481824762169" -- 新增動畫
+    ["Metro Man"] = "rbxassetid://79481824762169", -- 新增動畫
+    ["Liar Dancer"] = "rbxassetid://130514533200147" -- 新增動畫
 }
 
 -- 為了保持按鈕順序，我們使用一個數組來定義順序
@@ -181,7 +178,8 @@ local animationOrder = {
     "HONORED ONE",
     "Hey Now Boombox", -- 新增動畫順序
     "Califorina Girls", -- 新增動畫順序
-    "Metro Man" -- 新增動畫順序
+    "Metro Man", -- 新增動畫順序
+    "Liar Dancer" -- 新增動畫順序
 }
 
 -- 按照順序添加動畫播放/停止按鈕
@@ -420,5 +418,5 @@ game:GetService("UserInputService").InputBegan:Connect(function(input, gameProce
     end
 end)
 
-print("CX Animation Player 已加載完成")
+print("CX 已加載完成")
 print("玩家: " .. playerName .. " (" .. playerDisplayName .. ")")
