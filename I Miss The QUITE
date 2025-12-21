@@ -1,0 +1,1613 @@
+local Players = game:GetService("Players")
+local SoundService = game:GetService("SoundService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TextChatService = game:GetService("TextChatService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+
+local MUSIC_ID = "rbxassetid://83287682363564"
+local MUSIC_DURATION = 243  -- 4:03 = 243 seconds
+local FADE_OUT_START = 235  -- 3:55开始淡出
+local FADE_DURATION = 8
+
+-- 完整的时间轴，包含之前和新的歌词
+-- 透明度变为0%时（158秒）立即说歌词，其他新歌词在原时间基础上推迟1秒
+local LYRIC_TIMELINE = {
+    -- 之前的歌词（30秒到125秒）
+    [30] = "Would you Dare Look",
+    [32] = "Over your Shoulder",
+    [34] = "Do you fear what's",
+    [36] = "Coming 'round the Bend",
+    [38] = "Do you know what",
+    [40] = "Comes while you're Growing Older",
+    [42] = "Would you ever",
+    [44] = "Turn your Back Again?",
+    [46] = "Does it Stop Your Heart,",
+    [49] = "dose your Hair turn Greyer",
+    [50] = "let me tell you now it's gonna",
+    [52] = "Be, O-Kay Baby,",
+    [54] = "I MISS THE QUIEEEET",
+    [58] = "I CAN' T DENY IIIIIIIT",
+    [62] = "AM I TO FIGHT IIIIIIIIIT' CAUSE",
+    [66] = "EVEN AFTER ALL IS SAID AND",
+    [68] = "DONE",
+    [69] = "I only want to",
+    [70] = "Stay.",
+    [71] = "The Endless Void couldn't Fathom",
+    [75] = "the Fate I've Wished upon a Star",
+    [78] = "In your vessels all, so very Unbecoming,",
+    [82] = "I'll turn you All.",
+    [84] = "INTO A MARTYR",
+    [86] = "When you're brought to your knees,",
+    [88] = "and there's Nowhere to Run,",
+    [90] = "just Let me Tell you baby",
+    [92] = "HERE IT COMES",
+    [93] = "NOW",
+    [94] = "I MISS THE QUIEEEET",
+    [98] = "I CAN'T DENY IIIIIIIT",
+    [102] = "AM I TO FIGHT IIIIIIIIIT",
+    [107] = "OR BE DELIGHTEEEEEED?",
+    [110] = "I MISS THE QUIET,",
+    [112] = "YES I DO",
+    [114] = "I CAN' T DENY IT,",
+    [116] = "I KNOW IT' S TRUE,",
+    [117] = "OH BABY,",
+    [118] = "I MISS THE QUIEEEET, but",
+    [122] = "EVEN AFTER ALL IS SAID AND",
+    [124] = "DONE",
+    [125] = "We' ve Only Just BeGun.",
+    
+    -- 新的歌词 - 第一个歌词在158秒（透明度变为0%时立即发送）
+    [158] = "I MISS THE QUIEEEET",  -- 2:38透明度变为0%时立即说歌词
+    [163] = "I CAN'T DENY IIIIIIT",  -- 原162秒推迟5秒到163秒
+    [167] = "AM TO FIGHT IIIIIIIIIT",  -- 原166秒推迟1秒到167秒
+    [171] = "OR BE DELIGHTEEEEEED?",  -- 原170秒推迟1秒到171秒
+    [175] = "I MISS THE QUIEEEET",  -- 原174秒推迟1秒到175秒
+    [179] = "I CAN'T DENY IIIIIIT",  -- 原178秒推迟1秒到179秒
+    [183] = "AM I TO FIGHT IIIIIIIT",  -- 原182秒推迟1秒到183秒
+    [187] = "OR BE DELIGHTEEEEEEED?",  -- 原186秒推迟1秒到187秒
+    [191] = "I MISS THE QUIET,",  -- 原190秒推迟1秒到191秒
+    [193] = "YES I DO",  -- 原192秒推迟1秒到193秒
+    [195] = "YOU CAN'T DENY IT,",  -- 原194秒推迟1秒到195秒
+    [197] = "OH BABY,",  -- 原196秒推迟1秒到197秒
+    [199] = "I MISS THE QUITE LITTLE,",  -- 原198秒推迟1秒到199秒
+    [201] = "THINGS I'D BEFORE I",  -- 原200秒推迟1秒到201秒
+    [203] = "ENTERED ALL THE VIOLEEEENCE,",  -- 原202秒推迟1秒到203秒
+    [205] = "DEFINING SILVER LINING",  -- 原204秒推迟1秒到205秒
+    [207] = "I MISS THE QUIEEEEEEEET",  -- 原206秒推迟1秒到207秒
+    [211] = "I CAN'T DENY IT,",  -- 原210秒推迟1秒到211秒
+    [213] = "I KONW IT'S TRUE, OH BABY,",  -- 原212秒推迟1秒到213秒
+    [215] = "I MISS THE QUIEEEET,but",  -- 原214秒推迟1秒到215秒
+    [219] = "EVEN AFTER ALL IS SAID AND",  -- 原218秒推迟1秒到219秒
+    [221] = "DONE",  -- 原220秒推迟1秒到221秒
+    [222] = "I'm Only Having Fun.",  -- 原221秒推迟1秒到222秒
+    [225] = "I'm Only Having Fun.",  -- 原224秒推迟1秒到225秒
+    [229] = "I'm Only Having Fun.",  -- 原228秒推迟1秒到229秒
+    [233] = "I'm Only Having Fun.",  -- 原232秒推迟1秒到233秒
+}
+
+-- 动画时间轴 - 2:38-3:41播放112997181606542
+local ANIMATION_TIMELINE = {
+    {0, 54, "rbxassetid://83613946513780"},
+    {54, 70, "rbxassetid://112997181606542"},
+    {71, 93, "rbxassetid://83613946513780"},
+    {94, 157, "rbxassetid://112997181606542"},  -- 到2:37结束
+    {158, 221, "rbxassetid://112997181606542"},  -- 2:38到3:41，播放112997181606542
+    {222, 243, "rbxassetid://112997181606542"}  -- 3:42到结束，继续播放112997181606542
+}
+
+local currentMusic = nil
+local fadeOutTween = nil
+local currentAnimation = nil
+local animationCache = {}
+local musicStartTime = 0
+local systemRunning = false
+local mainThread = nil
+local animatorCache = nil
+local isDead = false
+local musicEndedConnection = nil
+local originalPosition = nil
+local originalCFrame = nil
+local undergroundDepth = 10
+local transparencyTween = nil
+local emergeTween = nil
+local transparencyParts = {}
+local transparencyRestored = false
+local hasTransparentPhaseStarted = false
+local hasTransparentPhaseEnded = false
+local hasFinalTransparentStarted = false
+local musicEnded = false
+local hasShownNotification = false  -- 跟踪是否已显示通知
+local screenLyricGui = nil  -- 屏幕歌词GUI
+local currentLyricDisplay = nil  -- 当前显示的歌词
+local wordDisplayContainer = nil  -- 逐词显示容器
+local wordLabels = {}  -- 单词标签集合
+local currentLyricTimer = nil  -- 当前歌词的计时器
+local musicInfoGui = nil  -- 音乐信息GUI
+local musicInfoSlideOutTween = nil  -- 音乐信息滑动消失Tween
+local colorTween = nil  -- 歌词颜色Tween
+local noGui = nil  -- NO字GUI
+local noTimers = {}  -- NO字计时器
+local noInstances = {}  -- NO字实例
+local whiteFlashGui = nil  -- 闪白GUI
+local flashWhiteConnections = {}  -- 闪白连接
+
+-- 聊天检测函数
+local function isChatEnabled()
+    local success, result = pcall(function()
+        if TextChatService and TextChatService.TextChannels then
+            return true
+        end
+        return false
+    end)
+    return success and result
+end
+
+local function cleanupTemporaryObjects()
+    -- 清理临时对象
+end
+
+local function trackObject(obj)
+    -- 追踪创建的对象
+end
+
+-- 清理颜色Tween
+local function cleanupColorTween()
+    if colorTween then
+        colorTween:Cancel()
+        colorTween = nil
+    end
+end
+
+-- 清理NO字GUI
+local function cleanupNoGui()
+    if noGui then
+        noGui:Destroy()
+        noGui = nil
+    end
+    
+    -- 清理所有NO字实例
+    for _, noInstance in ipairs(noInstances) do
+        if noInstance then
+            noInstance:Destroy()
+        end
+    end
+    noInstances = {}
+    
+    -- 清理计时器
+    for _, timer in ipairs(noTimers) do
+        if timer then
+            timer:Disconnect()
+        end
+    end
+    noTimers = {}
+end
+
+-- 创建NO字效果
+local function createNoEffect(timeGroup)
+    -- 清理旧的NO字GUI
+    cleanupNoGui()
+    
+    local player = Players.LocalPlayer
+    if not player then return end
+    
+    -- 创建NO字GUI
+    noGui = Instance.new("ScreenGui")
+    noGui.Name = "NoEffectGUI"
+    noGui.Parent = player:WaitForChild("PlayerGui")
+    noGui.ResetOnSpawn = false
+    noGui.IgnoreGuiInset = true
+    
+    -- 2:36-2:38和3:08-3:10各执行一次
+    -- 先创建四个NO字，设置它们的位置和大小，然后依次播放动画
+    
+    -- NO字大小定义
+    local sizes = {
+        {Width = 60, Height = 35},  -- 第一个：最小
+        {Width = 75, Height = 45},  -- 第二个：大一些
+        {Width = 90, Height = 55},  -- 第三个：更大
+        {Width = 110, Height = 65}  -- 第四个：最大
+    }
+    
+    -- 初始位置定义（屏幕外下方）
+    local startPositions = {
+        -- 第一个：左下方（X: 0.1, Y: 1.2）
+        {X = 0.1, Y = 1.2},
+        -- 第二个：右下方（X: 0.9, Y: 1.2）
+        {X = 0.9, Y = 1.2},
+        -- 第三个：左下方往右一点（X: 0.2, Y: 1.2）
+        {X = 0.2, Y = 1.2},
+        -- 第四个：右下方往左一点（X: 0.8, Y: 1.2）
+        {X = 0.8, Y = 1.2}
+    }
+    
+    -- 上升目标位置（屏幕内） - 调整所有NO字到中间位置，第三个和第四个更低一点
+    local riseTargetPositions = {
+        -- 第一个：上升到左侧中间（约0.45高度）
+        {X = 0.1, Y = 0.45},
+        -- 第二个：上升到右侧中间（约0.45高度）
+        {X = 0.9, Y = 0.45},
+        -- 第三个：上升到左侧往右一点，比第一个和第二个低一点（约0.55高度）
+        {X = 0.3, Y = 0.55},
+        -- 第四个：上升到右侧往左一点，比第一个和第二个低一点（约0.55高度）
+        {X = 0.7, Y = 0.55}
+    }
+    
+    -- 最终移动目标位置（移出屏幕） - 调整Y值以匹配上升高度
+    local finalTargetPositions = {
+        -- 第一个：向左移出
+        {X = -0.2, Y = 0.45},
+        -- 第二个：向右移出
+        {X = 1.2, Y = 0.45},
+        -- 第三个：向左移出
+        {X = -0.1, Y = 0.55},
+        -- 第四个：向右移出
+        {X = 1.1, Y = 0.55}
+    }
+    
+    -- 创建四个NO字
+    for i = 1, 4 do
+        local noLabel = Instance.new("TextLabel")
+        noLabel.Name = "No_" .. i .. "_" .. timeGroup
+        noLabel.Text = "NO"
+        noLabel.TextColor3 = Color3.fromRGB(173, 216, 230)  -- 浅蓝色
+        noLabel.BackgroundTransparency = 1  -- 透明背景
+        noLabel.TextScaled = true
+        noLabel.Font = Enum.Font.GothamBold
+        
+        -- 设置大小
+        noLabel.Size = UDim2.new(0, sizes[i].Width, 0, sizes[i].Height)
+        
+        -- 设置初始位置（屏幕外下方）
+        noLabel.Position = UDim2.new(startPositions[i].X, 0, startPositions[i].Y, 0)
+        
+        -- 设置描边（只有第四个有描边）
+        if i == 4 then
+            local stroke = Instance.new("UIStroke")
+            stroke.Color = Color3.new(0, 0, 0)  -- 黑色描边
+            stroke.Thickness = 2
+            stroke.Parent = noLabel
+        end
+        
+        -- 添加到GUI
+        noLabel.Parent = noGui
+        
+        -- 保存实例
+        table.insert(noInstances, noLabel)
+        
+        -- 创建动画序列
+        local timer = game:GetService("RunService").Heartbeat:Connect(function()
+            -- 动画将在后面的代码中触发
+        end)
+        table.insert(noTimers, timer)
+        
+        -- 延迟启动动画，依次出现（每个间隔0.3秒）
+        task.delay((i-1) * 0.3, function()
+            if noLabel and noLabel.Parent and systemRunning then
+                -- 上升动画（从下方上升到目标位置）
+                local riseTween = TweenService:Create(
+                    noLabel,
+                    TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    {
+                        Position = UDim2.new(riseTargetPositions[i].X, 0, riseTargetPositions[i].Y, 0)
+                    }
+                )
+                
+                -- 水平移动动画（移出屏幕） - 延迟0.5秒后开始
+                local moveTween = TweenService:Create(
+                    noLabel,
+                    TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0.5),
+                    {
+                        Position = UDim2.new(finalTargetPositions[i].X, 0, finalTargetPositions[i].Y, 0)
+                    }
+                )
+                
+                -- 播放上升动画
+                riseTween:Play()
+                
+                -- 上升动画结束后播放水平移动动画
+                riseTween.Completed:Connect(function()
+                    moveTween:Play()
+                    
+                    -- 水平移动动画结束后销毁该NO字
+                    moveTween.Completed:Connect(function()
+                        task.delay(0.5, function()
+                            if noLabel and noLabel.Parent then
+                                noLabel:Destroy()
+                            end
+                        end)
+                    end)
+                end)
+            end
+        end)
+    end
+    
+    -- 动画结束后清理
+    task.delay(4, function()
+        cleanupNoGui()
+    end)
+end
+
+-- 创建屏幕左下角的音乐信息UI
+local function createMusicInfoGui()
+    local player = Players.LocalPlayer
+    if not player then return end
+    
+    -- 先清理旧的GUI
+    if musicInfoGui and musicInfoGui.Parent then
+        musicInfoGui:Destroy()
+    end
+    
+    -- 创建新的GUI
+    musicInfoGui = Instance.new("ScreenGui")
+    musicInfoGui.Name = "MusicInfoBar"
+    musicInfoGui.Parent = player:WaitForChild("PlayerGui")
+    musicInfoGui.ResetOnSpawn = false
+    musicInfoGui.IgnoreGuiInset = true
+    
+    -- 创建长条背景 - 使用黑色半透明背景
+    local background = Instance.new("Frame")
+    background.Name = "Background"
+    background.Size = UDim2.new(0.35, 0, 0.08, 0)  -- 宽度为屏幕35%，高度为8%
+    -- 初始位置在屏幕左侧之外（左边距-100%）
+    background.Position = UDim2.new(-0.35, 0, 0.9, 0)
+    background.BackgroundColor3 = Color3.new(0, 0, 0)  -- 黑色背景
+    background.BackgroundTransparency = 0.3  -- 30%透明度
+    background.BorderSizePixel = 0
+    background.Parent = musicInfoGui
+    
+    -- 创建圆角效果
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = background
+    
+    -- 创建圆形光盘容器 - 固定在长条的最右侧
+    local discContainer = Instance.new("Frame")
+    discContainer.Name = "DiscContainer"
+    discContainer.Size = UDim2.new(0, 60, 0, 60)  -- 固定60x60像素
+    discContainer.Position = UDim2.new(1, -70, 0.5, -30)  -- 在最右侧，垂直居中
+    discContainer.BackgroundTransparency = 1
+    discContainer.Parent = background
+    
+    -- 创建圆形光盘 - 确保是真正的圆形
+    local disc = Instance.new("ImageLabel")
+    disc.Name = "Disc"
+    disc.Size = UDim2.new(1, 0, 1, 0)  -- 填满容器
+    disc.Position = UDim2.new(0, 0, 0, 0)
+    disc.Image = "rbxassetid://113321467979919"  -- 使用纹理图片
+    disc.BackgroundTransparency = 1
+    disc.Parent = discContainer
+    
+    -- 使光盘变成真正的圆形
+    local discCorner = Instance.new("UICorner")
+    discCorner.CornerRadius = UDim.new(1, 0)  -- 完全圆形
+    discCorner.Parent = disc
+    
+    -- 添加光盘白色边框
+    local discStroke = Instance.new("UIStroke")
+    discStroke.Color = Color3.new(1, 1, 1)  -- 白色
+    discStroke.Thickness = 2
+    discStroke.Parent = disc
+    
+    -- 为圆形添加旋转动画
+    local rotationSpeed = 1  -- 增加旋转速度
+    local rotationConnection
+    rotationConnection = game:GetService("RunService").RenderStepped:Connect(function()
+        if disc and disc.Parent and systemRunning then
+            disc.Rotation = disc.Rotation + rotationSpeed
+        elseif rotationConnection then
+            rotationConnection:Disconnect()
+        end
+    end)
+    
+    -- 创建歌曲名文本
+    local songName = Instance.new("TextLabel")
+    songName.Name = "SongName"
+    songName.Size = UDim2.new(1, -80, 0.5, 0)  -- 减去光盘宽度
+    songName.Position = UDim2.new(0, 10, 0.15, 0)
+    songName.Text = "I MISS THE QUIET"
+    songName.TextColor3 = Color3.new(1, 1, 1)  -- 白色
+    songName.TextScaled = true
+    songName.Font = Enum.Font.GothamBold
+    songName.TextXAlignment = Enum.TextXAlignment.Left
+    songName.BackgroundTransparency = 1
+    songName.Parent = background
+    
+    -- 创建作者文本
+    local artistName = Instance.new("TextLabel")
+    artistName.Name = "ArtistName"
+    artistName.Size = UDim2.new(1, -80, 0.3, 0)
+    artistName.Position = UDim2.new(0, 10, 0.65, 0)
+    artistName.Text = "Lord X"
+    artistName.TextColor3 = Color3.new(0.8, 0.8, 0.8)  -- 浅灰色
+    artistName.TextScaled = true
+    artistName.Font = Enum.Font.Gotham
+    artistName.TextXAlignment = Enum.TextXAlignment.Left
+    artistName.BackgroundTransparency = 1
+    artistName.Parent = background
+    
+    -- 创建从屏幕左侧钻出来的动画
+    task.wait(0.5)  -- 等待0.5秒后开始动画
+    if background and background.Parent then
+        local slideInTween = TweenService:Create(
+            background,
+            TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {Position = UDim2.new(0.02, 0, 0.9, 0)}  -- 目标位置
+        )
+        slideInTween:Play()
+        
+        -- 添加轻微弹跳效果
+        task.delay(0.8, function()
+            if background and background.Parent then
+                local bounceTween = TweenService:Create(
+                    background,
+                    TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    {Position = UDim2.new(0.02, 0, 0.91, 0)}
+                )
+                bounceTween:Play()
+                
+                task.delay(0.2, function()
+                    if background and background.Parent then
+                        local bounceBackTween = TweenService:Create(
+                            background,
+                            TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                            {Position = UDim2.new(0.02, 0, 0.9, 0)}
+                        )
+                        bounceBackTween:Play()
+                    end
+                end)
+            end
+        end)
+    end
+end
+
+-- 向左移动消失动画
+local function slideOutMusicInfoGui()
+    if not musicInfoGui then return end
+    
+    local background = musicInfoGui:FindFirstChild("Background")
+    if background then
+        -- 取消之前的动画
+        if musicInfoSlideOutTween then
+            musicInfoSlideOutTween:Cancel()
+        end
+        
+        -- 向左移动消失动画
+        musicInfoSlideOutTween = TweenService:Create(
+            background,
+            TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {Position = UDim2.new(-0.35, 0, 0.9, 0)}  -- 移出屏幕左侧
+        )
+        
+        musicInfoSlideOutTween:Play()
+        
+        -- 动画结束后销毁GUI
+        musicInfoSlideOutTween.Completed:Connect(function()
+            task.wait(0.5)
+            cleanupMusicInfoGui()
+        end)
+    else
+        cleanupMusicInfoGui()
+    end
+end
+
+-- 清理音乐信息GUI
+local function cleanupMusicInfoGui()
+    if musicInfoSlideOutTween then
+        musicInfoSlideOutTween:Cancel()
+        musicInfoSlideOutTween = nil
+    end
+    
+    if musicInfoGui then
+        musicInfoGui:Destroy()
+        musicInfoGui = nil
+    end
+end
+
+-- 创建屏幕歌词显示GUI
+local function createScreenLyricGui()
+    local player = Players.LocalPlayer
+    if not player then return end
+    
+    -- 先清理旧的GUI
+    if screenLyricGui and screenLyricGui.Parent then
+        screenLyricGui:Destroy()
+    end
+    
+    -- 创建新的GUI
+    screenLyricGui = Instance.new("ScreenGui")
+    screenLyricGui.Name = "LyricDisplay"
+    screenLyricGui.Parent = player:WaitForChild("PlayerGui")
+    screenLyricGui.ResetOnSpawn = false
+    screenLyricGui.IgnoreGuiInset = true
+    
+    -- 创建背景容器
+    local background = Instance.new("Frame")
+    background.Name = "Background"
+    background.Size = UDim2.new(1, 0, 0.1, 0)
+    background.Position = UDim2.new(0, 0, 0.05, 0)
+    background.BackgroundTransparency = 1  -- 完全透明背景
+    background.BorderSizePixel = 0
+    background.Parent = screenLyricGui
+    
+    -- 创建歌词显示文本（用于普通歌词）
+    currentLyricDisplay = Instance.new("TextLabel")
+    currentLyricDisplay.Name = "LyricText"
+    currentLyricDisplay.Size = UDim2.new(1, 0, 1, 0)
+    currentLyricDisplay.Position = UDim2.new(0, 0, 0, 0)
+    currentLyricDisplay.Text = ""
+    currentLyricDisplay.TextColor3 = Color3.new(1, 1, 1)  -- 白色
+    currentLyricDisplay.TextScaled = true
+    currentLyricDisplay.Font = Enum.Font.GothamBold
+    currentLyricDisplay.TextTransparency = 0  -- 初始完全显示，不透明
+    currentLyricDisplay.BackgroundTransparency = 1
+    currentLyricDisplay.Visible = true
+    currentLyricDisplay.Parent = background
+    
+    -- 创建逐词显示容器（用于"HERE IT COMES"效果）
+    wordDisplayContainer = Instance.new("Frame")
+    wordDisplayContainer.Name = "WordContainer"
+    wordDisplayContainer.Size = UDim2.new(1, 0, 1, 0)
+    wordDisplayContainer.Position = UDim2.new(0, 0, 0, 0)
+    wordDisplayContainer.BackgroundTransparency = 1
+    wordDisplayContainer.Visible = false
+    wordDisplayContainer.Parent = background
+    
+    -- 创建UIListLayout用于水平排列单词
+    local uiListLayout = Instance.new("UIListLayout")
+    uiListLayout.FillDirection = Enum.FillDirection.Horizontal
+    uiListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    uiListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    uiListLayout.Padding = UDim.new(0, 15)  -- 单词间距
+    uiListLayout.Parent = wordDisplayContainer
+end
+
+-- 清理逐词显示
+local function cleanupWordDisplay()
+    -- 清理单词标签
+    for _, label in ipairs(wordLabels) do
+        if label and label.Parent then
+            label:Destroy()
+        end
+    end
+    wordLabels = {}
+    
+    -- 隐藏容器
+    if wordDisplayContainer then
+        wordDisplayContainer.Visible = false
+    end
+    
+    -- 显示普通歌词容器
+    if currentLyricDisplay then
+        currentLyricDisplay.Visible = true
+    end
+end
+
+-- 清理所有歌词显示
+local function cleanupAllLyrics()
+    -- 取消当前歌词计时器
+    if currentLyricTimer then
+        currentLyricTimer:Disconnect()
+        currentLyricTimer = nil
+    end
+    
+    -- 清理颜色Tween
+    cleanupColorTween()
+    
+    -- 清理逐词显示
+    cleanupWordDisplay()
+    
+    -- 隐藏普通歌词
+    if currentLyricDisplay then
+        currentLyricDisplay.Text = ""
+        currentLyricDisplay.TextColor3 = Color3.new(1, 1, 1)  -- 重置为白色
+    end
+end
+
+-- 显示普通歌词（白色，直接显示，不淡入淡出）
+local function displayNormalLyric(text)
+    if not systemRunning or not screenLyricGui or not currentLyricDisplay then
+        createScreenLyricGui()
+    end
+    
+    -- 先清理所有歌词显示
+    cleanupAllLyrics()
+    
+    if not text or text == "" then
+        return
+    end
+    
+    -- 设置新歌词文本，直接显示
+    currentLyricDisplay.Text = text
+    currentLyricDisplay.TextColor3 = Color3.new(1, 1, 1)  -- 白色
+    currentLyricDisplay.Visible = true
+    currentLyricDisplay.TextTransparency = 0  -- 完全不透明
+end
+
+-- 显示"INTO A MARTYR" - 逐渐变红效果（修复版）
+local function displayGradualRedLyric(text)
+    if not systemRunning or not screenLyricGui or not currentLyricDisplay then
+        createScreenLyricGui()
+    end
+    
+    -- 先清理所有歌词显示
+    cleanupAllLyrics()
+    
+    -- 设置新歌词文本，初始为白色
+    currentLyricDisplay.Text = text
+    currentLyricDisplay.TextColor3 = Color3.new(1, 1, 1)  -- 初始白色
+    currentLyricDisplay.Visible = true
+    currentLyricDisplay.TextTransparency = 0  -- 完全不透明
+    
+    -- 清理之前的颜色Tween
+    cleanupColorTween()
+    
+    -- 创建颜色渐变效果：从白色渐变到红色
+    colorTween = TweenService:Create(
+        currentLyricDisplay,
+        TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {TextColor3 = Color3.new(1, 0, 0)}  -- 红色
+    )
+    colorTween:Play()
+    
+    -- 在颜色渐变结束后，保持红色直到下一个歌词
+    colorTween.Completed:Connect(function()
+        -- 保持红色状态，直到下一个歌词显示
+        -- 这里不需要再设置颜色，因为Tween已经将颜色设为红色
+    end)
+end
+
+-- 显示"HERE IT COMES" - 逐词瞬间变红效果
+local function displayWordByWordRedLyric(text)
+    if not systemRunning or not screenLyricGui then
+        createScreenLyricGui()
+    end
+    
+    -- 先清理所有歌词显示
+    cleanupAllLyrics()
+    
+    -- 隐藏普通歌词显示
+    if currentLyricDisplay then
+        currentLyricDisplay.Visible = false
+    end
+    
+    -- 清理旧的单词标签
+    cleanupWordDisplay()
+    
+    -- 分割单词
+    local words = {}
+    for word in text:gmatch("%S+") do
+        table.insert(words, word)
+    end
+    
+    -- 创建每个单词的标签
+    for i, word in ipairs(words) do
+        local wordLabel = Instance.new("TextLabel")
+        wordLabel.Name = "Word_" .. i
+        wordLabel.Text = word
+        wordLabel.TextColor3 = Color3.new(1, 1, 1)  -- 初始白色
+        wordLabel.TextScaled = true
+        wordLabel.Font = Enum.Font.GothamBold
+        wordLabel.BackgroundTransparency = 1
+        wordLabel.Size = UDim2.new(0, 0, 1, 0)  -- 宽度自适应
+        wordLabel.AutomaticSize = Enum.AutomaticSize.X
+        wordLabel.LayoutOrder = i
+        wordLabel.Parent = wordDisplayContainer
+        
+        table.insert(wordLabels, wordLabel)
+    end
+    
+    -- 显示单词容器
+    wordDisplayContainer.Visible = true
+    
+    -- 逐个单词变红
+    for i, wordLabel in ipairs(wordLabels) do
+        task.delay((i-1) * 0.3, function()  -- 每个单词间隔0.3秒
+            if wordLabel and wordLabel.Parent and systemRunning then
+                -- 瞬间变为红色
+                wordLabel.TextColor3 = Color3.new(1, 0, 0)
+                
+                -- 添加轻微的放大效果
+                local originalSize = wordLabel.Size
+                local scaleTween = TweenService:Create(
+                    wordLabel,
+                    TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    {Size = UDim2.new(0, wordLabel.TextBounds.X * 1.2, 1, 0)}
+                )
+                scaleTween:Play()
+                
+                -- 然后恢复原大小
+                task.delay(0.1, function()
+                    if wordLabel and wordLabel.Parent and systemRunning then
+                        local restoreTween = TweenService:Create(
+                            wordLabel,
+                            TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                            {Size = originalSize}
+                        )
+                        restoreTween:Play()
+                    end
+                end)
+            end
+        end)
+    end
+end
+
+-- 在屏幕上显示歌词（统一入口）
+local function displayLyricOnScreen(text)
+    if not text or text == "" then
+        cleanupAllLyrics()
+        return
+    end
+    
+    -- 检查特殊效果的歌词
+    if text == "INTO A MARTYR" then
+        displayGradualRedLyric(text)
+    elseif text == "HERE IT COMES" then
+        displayWordByWordRedLyric(text)
+    else
+        displayNormalLyric(text)
+    end
+end
+
+-- 清理屏幕歌词GUI
+local function cleanupScreenLyricGui()
+    cleanupAllLyrics()
+    
+    if screenLyricGui then
+        screenLyricGui:Destroy()
+        screenLyricGui = nil
+        currentLyricDisplay = nil
+        wordDisplayContainer = nil
+    end
+end
+
+-- 优化的闪白效果函数 - 简化版，减少卡顿
+local function createWhiteFlashEffect(startTime, endTime)
+    local player = Players.LocalPlayer
+    if not player then return end
+    
+    -- 清理旧的闪白GUI
+    if whiteFlashGui then
+        whiteFlashGui:Destroy()
+        whiteFlashGui = nil
+    end
+    
+    -- 创建闪白GUI
+    whiteFlashGui = Instance.new("ScreenGui")
+    whiteFlashGui.Name = "WhiteFlashGUI"
+    whiteFlashGui.Parent = player:WaitForChild("PlayerGui")
+    whiteFlashGui.ResetOnSpawn = false
+    whiteFlashGui.IgnoreGuiInset = true
+    
+    -- 创建白色覆盖层
+    local whiteOverlay = Instance.new("Frame")
+    whiteOverlay.Name = "WhiteOverlay"
+    whiteOverlay.Size = UDim2.new(1, 0, 1, 0)  -- 全屏
+    whiteOverlay.Position = UDim2.new(0, 0, 0, 0)
+    whiteOverlay.BackgroundColor3 = Color3.new(1, 1, 1)  -- 白色
+    whiteOverlay.BackgroundTransparency = 0.2  -- 稍微透明一点，减少刺眼感
+    whiteOverlay.BorderSizePixel = 0
+    whiteOverlay.ZIndex = 100  -- 确保在最上层
+    whiteOverlay.Parent = whiteFlashGui
+    
+    -- 简化闪白逻辑：直接显示然后快速淡出，不创建多个连接
+    local function playFlash()
+        if not whiteOverlay or not whiteOverlay.Parent then return end
+        
+        -- 快速淡入淡出效果
+        local fadeIn = TweenService:Create(
+            whiteOverlay,
+            TweenInfo.new(0.05, Enum.EasingStyle.Linear),
+            {BackgroundTransparency = 0.2}
+        )
+        
+        local fadeOut = TweenService:Create(
+            whiteOverlay,
+            TweenInfo.new(0.15, Enum.EasingStyle.Linear),
+            {BackgroundTransparency = 1}
+        )
+        
+        fadeIn:Play()
+        fadeIn.Completed:Connect(function()
+            fadeOut:Play()
+            
+            fadeOut.Completed:Connect(function()
+                task.delay(0.5, function()
+                    if whiteFlashGui and whiteFlashGui.Parent then
+                        whiteFlashGui:Destroy()
+                        whiteFlashGui = nil
+                    end
+                end)
+            end)
+        end)
+    end
+    
+    -- 延迟执行闪白
+    local delayTime = startTime - (os.clock() - musicStartTime)
+    if delayTime > 0 then
+        task.delay(delayTime, function()
+            if systemRunning then
+                playFlash()
+            end
+        end)
+    else
+        if systemRunning then
+            playFlash()
+        end
+    end
+end
+
+-- 清理闪白效果的函数
+local function cleanupWhiteFlash()
+    -- 清理连接
+    for _, connection in ipairs(flashWhiteConnections) do
+        if connection then
+            connection:Disconnect()
+        end
+    end
+    flashWhiteConnections = {}
+    
+    -- 清理GUI
+    if whiteFlashGui then
+        whiteFlashGui:Destroy()
+        whiteFlashGui = nil
+    end
+end
+
+-- 新增：发送成就通知函数 - 使用Roblox原生成就通知
+local function sendAchievementNotifications()
+    if hasShownNotification then return end
+    
+    local player = Players.LocalPlayer
+    if not player then return end
+    
+    hasShownNotification = true
+    
+    -- 定义三个通知的内容
+    local notifications = {
+        {
+            title = "I MISS THE QUIET",
+            text = "Made By LOL/Fcad/TvT, Sing a cover song:Lord X",
+            icon = "rbxassetid://113321467979919",
+            duration = 5
+        },
+        {
+            title = "I MISS THE QUIET",
+            text = "Please subscribe to me",
+            icon = "rbxassetid://113321467979919",
+            duration = 5
+        },
+        {
+            title = "I MISS THE QUIET",
+            text = "enjoy :P",
+            icon = "rbxassetid://113321467979919",
+            duration = 5
+        }
+    }
+    
+    -- 依次发送三个通知，每个间隔2秒
+    for i, notification in ipairs(notifications) do
+        task.delay((i-1) * 2, function()
+            -- 方法1：尝试使用StarterGui的SetCore函数来发送成就通知
+            local success1 = pcall(function()
+                local starterGui = game:GetService("StarterGui")
+                starterGui:SetCore("SendNotification", {
+                    Title = notification.title,
+                    Text = notification.text,
+                    Icon = notification.icon,
+                    Duration = notification.duration,
+                    Callback = function() end
+                })
+            end)
+            
+            -- 如果方法1失败，尝试方法2：使用PlayerGui
+            if not success1 then
+                pcall(function()
+                    local playerGui = player:WaitForChild("PlayerGui")
+                    -- 创建一个简单的通知脚本
+                    local script = Instance.new("LocalScript")
+                    script.Name = "NotificationScript_" .. i
+                    script.Parent = playerGui
+                    
+                    local source = string.format([[
+                        task.wait(0.1)
+                        
+                        local success = pcall(function()
+                            game:GetService("StarterGui"):SetCore("SendNotification", {
+                                Title = "%s",
+                                Text = "%s",
+                                Icon = "%s",
+                                Duration = %d,
+                                Callback = function() end
+                            })
+                        end)
+                        
+                        if not success then
+                            game.StarterGui:SetCore("Alert", {
+                                Title = "%s",
+                                Text = "%s",
+                                Duration = %d
+                            })
+                        end
+                        
+                        script:Destroy()
+                    ]], notification.title, notification.text, notification.icon, notification.duration, 
+                       notification.title, notification.text, notification.duration)
+                    
+                    script.Source = source
+                end)
+            end
+        end)
+    end
+    
+    -- 如果所有方法都失败，尝试通过聊天发送
+    task.delay(7, function()
+        sendLyric("[通知] I MISS THE QUIET - Made By LOL/Fcad/TvT, Sing a cover song:Lord X")
+        task.delay(2, function()
+            sendLyric("[通知] I MISS THE QUIET - Please subscribe to me")
+            task.delay(2, function()
+                sendLyric("[通知] I MISS THE QUIET - enjoy :P")
+            end)
+        end)
+    end)
+end
+
+local function stopMusic()
+    if currentMusic then
+        if fadeOutTween then
+            fadeOutTween:Cancel()
+            fadeOutTween = nil
+        end
+        
+        if musicEndedConnection then
+            musicEndedConnection:Disconnect()
+            musicEndedConnection = nil
+        end
+        
+        currentMusic:Stop()
+        currentMusic:Destroy()
+        currentMusic = nil
+    end
+end
+
+local function stopAnimation()
+    if currentAnimation then
+        currentAnimation:Stop()
+        currentAnimation:Destroy()
+        currentAnimation = nil
+    end
+    
+    for _, animTrack in pairs(animationCache) do
+        animTrack:Stop()
+        animTrack:Destroy()
+    end
+    animationCache = {}
+end
+
+local function getCharacterParts()
+    local player = Players.LocalPlayer
+    if not player then return {} end
+    
+    local character = player.Character
+    if not character then return {} end
+    
+    local parts = {}
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            table.insert(parts, part)
+        end
+    end
+    
+    return parts
+end
+
+local function setPlayerTransparency(transparency)
+    local parts = getCharacterParts()
+    for _, part in ipairs(parts) do
+        part.Transparency = transparency
+    end
+end
+
+local function fadePlayerTransparency(fromValue, toValue, duration)
+    local parts = getCharacterParts()
+    if #parts == 0 then return end
+    
+    local startTime = os.clock()
+    local elapsedTime = 0
+    
+    while elapsedTime < duration and systemRunning do
+        elapsedTime = os.clock() - startTime
+        local progress = math.min(elapsedTime / duration, 1)
+        local currentTransparency = fromValue + (toValue - fromValue) * progress
+        
+        for _, part in ipairs(parts) do
+            part.Transparency = currentTransparency
+        end
+        
+        task.wait(0.05)
+    end
+    
+    if systemRunning then
+        for _, part in ipairs(parts) do
+            part.Transparency = toValue
+        end
+    end
+end
+
+local function restorePlayerTransparency()
+    if transparencyRestored then return end
+    
+    transparencyRestored = true
+    setPlayerTransparency(0)  -- 恢复为0%透明度
+end
+
+local function getCharacterRoot()
+    local player = Players.LocalPlayer
+    if not player then return nil end
+    
+    local character = player.Character
+    if not character then return nil end
+    
+    return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+end
+
+local function sinkCharacter()
+    local rootPart = getCharacterRoot()
+    if not rootPart then return end
+    
+    originalPosition = rootPart.Position
+    originalCFrame = rootPart.CFrame
+    
+    local undergroundCFrame = CFrame.new(
+        originalPosition.X,
+        originalPosition.Y - undergroundDepth,
+        originalPosition.Z
+    ) * CFrame.Angles(
+        originalCFrame:ToEulerAnglesXYZ()
+    )
+    
+    rootPart.CFrame = undergroundCFrame
+    rootPart.Anchored = true
+end
+
+local function emergeCharacter()
+    local rootPart = getCharacterRoot()
+    if not rootPart or not originalCFrame then return end
+    
+    emergeTween = TweenService:Create(
+        rootPart,
+        TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {CFrame = originalCFrame}
+    )
+    
+    emergeTween:Play()
+    
+    task.delay(2, function()
+        if rootPart and rootPart:IsA("BasePart") and systemRunning then
+            rootPart.Anchored = false
+        end
+    end)
+end
+
+local function restoreCharacter()
+    local rootPart = getCharacterRoot()
+    if not rootPart then return end
+    
+    if transparencyTween then
+        transparencyTween:Cancel()
+        transparencyTween = nil
+    end
+    
+    if emergeTween then
+        emergeTween:Cancel()
+        emergeTween = nil
+    end
+    
+    if originalCFrame then
+        rootPart.CFrame = originalCFrame
+    end
+    rootPart.Anchored = false
+    
+    restorePlayerTransparency()
+end
+
+local function cleanupWhiteBlocks()
+    -- 清理白色方块
+    local player = Players.LocalPlayer
+    if not player then return end
+    
+    local character = player.Character
+    if not character then return end
+    
+    for _, obj in ipairs(character:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            if obj.Name == "WhiteBlock" or obj.Name == "Part" or obj.Name == "Block" then
+                if obj.BrickColor == BrickColor.new("White") or 
+                   obj.Color == Color3.new(1, 1, 1) then
+                    pcall(function() obj:Destroy() end)
+                end
+            end
+        end
+    end
+end
+
+local function getAnimator()
+    if animatorCache and animatorCache.Parent then
+        return animatorCache
+    end
+    
+    local player = Players.LocalPlayer
+    if not player then return nil end
+    
+    local character = player.Character
+    if not character then return nil end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return nil end
+    
+    local animator = humanoid:FindFirstChild("Animator")
+    if not animator then
+        animator = Instance.new("Animator")
+        animator.Parent = humanoid
+    end
+    
+    animatorCache = animator
+    return animator
+end
+
+local function playAnimation(animId)
+    if isDead or not systemRunning then return end
+    
+    local animator = getAnimator()
+    if not animator then return end
+    
+    if not animationCache[animId] then
+        local animation = Instance.new("Animation")
+        animation.AnimationId = animId
+        animationCache[animId] = animator:LoadAnimation(animation)
+    end
+    
+    if currentAnimation then
+        currentAnimation:Stop()
+    end
+    
+    currentAnimation = animationCache[animId]
+    currentAnimation:Play()
+end
+
+local function playMusic()
+    if isDead then return end
+    
+    stopMusic()
+    
+    local sound = Instance.new("Sound")
+    sound.SoundId = MUSIC_ID
+    sound.Volume = 10
+    sound.Looped = false
+    sound.Name = "LyricMusic"
+    
+    local targetParent = SoundService or Workspace
+    sound.Parent = targetParent
+    
+    sound:Play()
+    currentMusic = sound
+    musicStartTime = os.clock()
+    
+    musicEndedConnection = sound.Ended:Connect(function()
+        if systemRunning then
+            musicEnded = true
+            stopSystem()
+        end
+    end)
+    
+    -- 在3:55开始淡出
+    task.delay(FADE_OUT_START, function()
+        if systemRunning and currentMusic and currentMusic.Playing then
+            fadeOutTween = TweenService:Create(
+                currentMusic,
+                TweenInfo.new(FADE_DURATION, Enum.EasingStyle.Linear),
+                {Volume = 0}
+            )
+            fadeOutTween:Play()
+        end
+    end)
+    
+    -- 音乐结束后停止系统
+    task.delay(MUSIC_DURATION, function()
+        if systemRunning and currentMusic and currentMusic.Playing then
+            musicEnded = true
+            stopSystem()
+        end
+    end)
+    
+    return sound
+end
+
+local function sendLyric(message)
+    if isDead or not systemRunning then return end
+    
+    if message == "" then return end
+    
+    -- 在屏幕上显示歌词（根据歌词内容应用不同效果）
+    displayLyricOnScreen(message)
+    
+    -- 尝试使用TextChatService（Roblox新聊天系统）
+    local success1 = pcall(function()
+        if TextChatService and TextChatService.TextChannels then
+            local channel = TextChatService.TextChannels.RBXGeneral
+            if channel and channel.SendAsync then
+                channel:SendAsync(message)
+                return true
+            end
+        end
+        return false
+    end)
+    
+    if success1 then return end
+    
+    -- 尝试使用旧聊天系统
+    local success2 = pcall(function()
+        local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if chatEvents then
+            local sayRequest = chatEvents:FindFirstChild("SayMessageRequest")
+            if sayRequest then
+                sayRequest:FireServer(message, "All")
+                return true
+            end
+        end
+        return false
+    end)
+    
+    if success2 then return end
+    
+    -- 如果以上都失败，使用玩家Chat方法
+    local success3 = pcall(function()
+        local player = Players.LocalPlayer
+        if player and player.Chat then
+            player:Chat(message)
+            return true
+        end
+        return false
+    end)
+    
+    if not success3 then
+        warn("无法发送歌词消息，聊天系统可能不可用")
+    end
+end
+
+local function startLyricSystem()
+    local lyricKeys = {}
+    for time in pairs(LYRIC_TIMELINE) do
+        table.insert(lyricKeys, time)
+    end
+    table.sort(lyricKeys)
+    
+    local currentLyricIndex = 1
+    local totalLyrics = #lyricKeys
+    
+    local currentAnimIndex = 1
+    local totalAnims = #ANIMATION_TIMELINE
+    
+    local lastAnimId = nil
+    local hasEmerged = false
+    
+    -- NO字效果标志
+    local hasFirstNoEffect = false  -- 2:36-2:38
+    local hasSecondNoEffect = false -- 3:08-3:10
+    
+    -- 闪白效果标志
+    local hasFirstFlash = false  -- 1:08-1:09 (68-69秒)
+    local hasSecondFlash = false -- 1:33-1:34 (93-94秒)
+    local hasThirdFlash = false  -- 3:40-3:41 (220-221秒)
+    
+    while not isDead and systemRunning do
+        local currentTime = os.clock() - musicStartTime
+        
+        if currentTime >= MUSIC_DURATION then
+            break
+        end
+        
+        -- 从地下升起
+        if currentTime >= 28 and currentTime <= 30 and not hasEmerged then
+            task.spawn(function()
+                hasEmerged = true
+                emergeCharacter()
+            end)
+        end
+        
+        -- 透明度控制
+        if currentTime >= 126 and currentTime <= 157 and not hasTransparentPhaseStarted then
+            hasTransparentPhaseStarted = true
+            task.spawn(function()
+                setPlayerTransparency(1)  -- 立即设置为100%透明度
+            end)
+        end
+        
+        -- 在158秒透明度变为0%并立即发送歌词
+        if currentTime >= 158 and currentTime <= 159 and not hasTransparentPhaseEnded then
+            hasTransparentPhaseEnded = true
+            
+            -- 先设置透明度为0%
+            setPlayerTransparency(0)
+            
+            -- 立即发送对应的歌词
+            if LYRIC_TIMELINE[158] then
+                sendLyric(LYRIC_TIMELINE[158])
+            end
+        end
+        
+        -- 在3:55（235秒）透明度变为100%
+        if currentTime >= 235 and currentTime <= 237 and not hasFinalTransparentStarted then
+            hasFinalTransparentStarted = true
+            task.spawn(function()
+                setPlayerTransparency(1)  -- 立即设置为100%透明度
+            end)
+        end
+        
+        -- NO字效果 - 2:36-2:38 (156-158秒)
+        if currentTime >= 156 and currentTime <= 158 and not hasFirstNoEffect then
+            hasFirstNoEffect = true
+            task.spawn(function()
+                createNoEffect("first")
+            end)
+        end
+        
+        -- NO字效果 - 3:08-3:10 (188-190秒)
+        if currentTime >= 188 and currentTime <= 190 and not hasSecondNoEffect then
+            hasSecondNoEffect = true
+            task.spawn(function()
+                createNoEffect("second")
+            end)
+        end
+        
+        -- 闪白效果 - 1:08-1:09 (68-69秒) - 简化版
+        if currentTime >= 68 and currentTime <= 69 and not hasFirstFlash then
+            hasFirstFlash = true
+            task.spawn(function()
+                createWhiteFlashEffect(68, 69)
+            end)
+        end
+        
+        -- 闪白效果 - 1:33-1:34 (93-94秒)
+        if currentTime >= 93 and currentTime <= 94 and not hasSecondFlash then
+            hasSecondFlash = true
+            task.spawn(function()
+                createWhiteFlashEffect(93, 94)
+            end)
+        end
+        
+        -- 闪白效果 - 3:40-3:41 (220-221秒)
+        if currentTime >= 220 and currentTime <= 221 and not hasThirdFlash then
+            hasThirdFlash = true
+            task.spawn(function()
+                createWhiteFlashEffect(220, 221)
+            end)
+        end
+        
+        -- 处理其他歌词（跳过已经在158秒发送的歌词）
+        -- 从第2个歌词开始处理
+        local skipFirstLyric = hasTransparentPhaseEnded  -- 如果158秒的歌词已经发送过，则跳过
+        if skipFirstLyric then
+            -- 确保currentLyricIndex指向第二个歌词
+            for i, time in ipairs(lyricKeys) do
+                if time > 158 then
+                    if currentLyricIndex < i then
+                        currentLyricIndex = i
+                    end
+                    break
+                end
+            end
+        end
+        
+        if currentLyricIndex <= totalLyrics then
+            local targetTime = lyricKeys[currentLyricIndex]
+            
+            -- 跳过158秒的歌词（已经处理过）
+            if targetTime > 158 and currentTime >= targetTime then
+                sendLyric(LYRIC_TIMELINE[targetTime])
+                currentLyricIndex = currentLyricIndex + 1
+            elseif targetTime == 158 and not skipFirstLyric then
+                -- 如果158秒的歌词还没有处理（理论上不会发生，因为上面已经处理了）
+                sendLyric(LYRIC_TIMELINE[158])
+                currentLyricIndex = currentLyricIndex + 1
+            elseif targetTime < 158 and currentTime >= targetTime then
+                -- 处理158秒之前的歌词
+                sendLyric(LYRIC_TIMELINE[targetTime])
+                currentLyricIndex = currentLyricIndex + 1
+            end
+        end
+        
+        -- 处理动画
+        if currentAnimIndex <= totalAnims then
+            local animStart = ANIMATION_TIMELINE[currentAnimIndex][1]
+            local animEnd = ANIMATION_TIMELINE[currentAnimIndex][2]
+            local animId = ANIMATION_TIMELINE[currentAnimIndex][3]
+            
+            if currentTime >= animStart and currentTime <= animEnd then
+                if animId ~= lastAnimId then
+                    playAnimation(animId)
+                    lastAnimId = animId
+                end
+            elseif currentTime > animEnd then
+                currentAnimIndex = currentAnimIndex + 1
+                if currentAnimIndex <= totalAnims and currentTime >= ANIMATION_TIMELINE[currentAnimIndex][1] then
+                    local nextAnimId = ANIMATION_TIMELINE[currentAnimIndex][3]
+                    if nextAnimId ~= lastAnimId then
+                        playAnimation(nextAnimId)
+                        lastAnimId = nextAnimId
+                    end
+                end
+            end
+        end
+        
+        local nextEventTime = math.min(
+            currentLyricIndex <= totalLyrics and lyricKeys[currentLyricIndex] or math.huge,
+            currentAnimIndex <= totalAnims and ANIMATION_TIMELINE[currentAnimIndex][1] or math.huge,
+            MUSIC_DURATION
+        )
+        
+        if nextEventTime ~= math.huge then
+            local waitTime = nextEventTime - currentTime
+            if waitTime > 0.1 then
+                task.wait(0.05)
+            else
+                task.wait(math.max(0.001, waitTime))
+            end
+        else
+            task.wait(0.1)
+        end
+    end
+    
+    -- 当循环结束时，意味着音乐已经结束或系统已停止
+    if systemRunning then
+        -- 音乐结束后立即清除歌词
+        cleanupAllLyrics()
+        
+        -- 清理NO字效果
+        cleanupNoGui()
+        
+        -- 清理闪白效果
+        cleanupWhiteFlash()
+        
+        -- 左下角UI向左移动消失
+        task.delay(1, function()
+            slideOutMusicInfoGui()
+        end)
+    end
+end
+
+local function startSystem()
+    if isDead or systemRunning then return end
+    
+    systemRunning = true
+    musicEnded = false
+    transparencyRestored = false
+    hasTransparentPhaseStarted = false
+    hasTransparentPhaseEnded = false
+    hasFinalTransparentStarted = false
+    
+    -- 创建音乐信息UI（左下角长条）
+    task.delay(0.1, function()
+        createMusicInfoGui()
+    end)
+    
+    -- 创建屏幕歌词GUI
+    task.delay(0.5, function()
+        createScreenLyricGui()
+    end)
+    
+    -- 发送三个成就通知
+    task.delay(1, function()
+        sendAchievementNotifications()
+    end)
+    
+    cleanupWhiteBlocks()
+    setPlayerTransparency(0)
+    sinkCharacter()
+    
+    playMusic()
+    
+    mainThread = task.spawn(function()
+        startLyricSystem()
+    end)
+    
+    -- 音乐结束时恢复透明度和停止动画
+    task.delay(MUSIC_DURATION + 1, function()
+        if systemRunning then
+            restorePlayerTransparency()
+            stopAnimation()
+            
+            -- 解除玩家固定
+            local rootPart = getCharacterRoot()
+            if rootPart then
+                rootPart.Anchored = false
+            end
+            
+            -- 清理屏幕歌词
+            cleanupScreenLyricGui()
+            
+            -- 清理NO字效果
+            cleanupNoGui()
+        end
+    end)
+end
+
+local function stopSystem()
+    if not systemRunning then return end
+    
+    systemRunning = false
+    
+    if mainThread then
+        task.cancel(mainThread)
+        mainThread = nil
+    end
+    
+    stopMusic()
+    stopAnimation()
+    restoreCharacter()
+    cleanupWhiteBlocks()
+    
+    -- 清理所有GUI
+    cleanupScreenLyricGui()
+    cleanupNoGui()
+    cleanupWhiteFlash()
+    
+    -- 左下角UI向左移动消失
+    slideOutMusicInfoGui()
+end
+
+local function cleanupSystem()
+    isDead = true
+    stopSystem()
+    animatorCache = nil
+    animationCache = {}
+    hasShownNotification = false  -- 重置通知状态
+end
+
+local player = Players.LocalPlayer
+if not player then
+    Players.PlayerAdded:Wait()
+    player = Players.LocalPlayer
+end
+
+local function onCharacterAdded(character)
+    isDead = false
+    animatorCache = nil
+    animationCache = {}
+    musicEnded = false
+    transparencyRestored = false
+    hasTransparentPhaseStarted = false
+    hasTransparentPhaseEnded = false
+    hasFinalTransparentStarted = false
+    hasShownNotification = false  -- 重置通知状态
+    
+    setPlayerTransparency(0)
+    
+    character:WaitForChild("Humanoid")
+    
+    startSystem()
+    
+    local humanoid = character:WaitForChild("Humanoid")
+    humanoid.Died:Connect(function()
+        cleanupSystem()
+    end)
+end
+
+if player.Character then
+    onCharacterAdded(player.Character)
+end
+
+player.CharacterAdded:Connect(onCharacterAdded)
+player.CharacterRemoving:Connect(cleanupSystem)
+
+task.wait(1)
+startSystem()
+
+-- 定期清理白色方块
+while true do
+    task.wait(5)
+    if systemRunning then
+        cleanupWhiteBlocks()
+    end
+end
