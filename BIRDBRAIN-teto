@@ -1,0 +1,361 @@
+local Players = game:GetService("Players")
+local SoundService = game:GetService("SoundService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TextChatService = game:GetService("TextChatService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local StarterGui = game:GetService("StarterGui")
+
+local MUSIC_ID = "rbxassetid://101738736327503"
+local MUSIC_START_TIME = 41  -- 从41秒开始
+local MUSIC_END_TIME = 52    -- 到52秒结束
+local FADE_IN_DURATION = 1   -- 淡入1秒
+local FADE_OUT_DURATION = 1  -- 淡出1秒
+local MAX_VOLUME = 10        -- 最大音量
+
+local LYRIC_TIMELINE = {
+    [1] = "but i falter on the forethought", -- 0:42 (相对时间1秒)
+    [3] = "i keep on running like a chicken with its head cut off", -- 0:44 (相对时间3秒)
+    [6] = "achromatic twisted aeronaut", -- 0:47 (相对时间6秒)
+    [9] = "a BIRDBRAIN, baby, i don't know when i'm supposed to stop" -- 0:50 (相对时间9秒)
+}
+
+-- 动画
+local BODY_ANIMATION_ID = "rbxassetid://107922881529683"
+local FACE_ANIMATION_ID = "rbxassetid://14366558676"
+
+-- 成就
+local ACHIEVEMENT_IMAGE_ID = "rbxassetid://104554152691046"
+local achievementShown = false
+
+local currentMusic = nil
+local fadeOutTween = nil
+local fadeInTween = nil
+local bodyAnimation = nil
+local faceAnimation = nil
+local animationCache = {}
+local systemRunning = false
+local animatorCache = nil
+local isDead = false
+local lyricsSent = {}
+
+local function showAchievement()
+    if achievementShown then return end
+    
+    achievementShown = true
+    
+    pcall(function()
+        local notificationData = {
+            Title = "BirdBrain",
+            Text = "Made by: LOL/Fcad/TvT\nEnjoy: P",
+            Icon = ACHIEVEMENT_IMAGE_ID,
+            Duration = 5
+        }
+        
+        StarterGui:SetCore("SendNotification", notificationData)
+    end)
+end
+
+local function stopMusic()
+    if currentMusic then
+        -- 取消所有Tween
+        if fadeOutTween then
+            fadeOutTween:Cancel()
+            fadeOutTween = nil
+        end
+        
+        if fadeInTween then
+            fadeInTween:Cancel()
+            fadeInTween = nil
+        end
+        
+        if currentMusic.Playing then
+            currentMusic:Stop()
+        end
+        currentMusic:Destroy()
+        currentMusic = nil
+    end
+end
+
+local function stopAnimation()
+    if bodyAnimation then
+        bodyAnimation:Stop()
+        bodyAnimation:Destroy()
+        bodyAnimation = nil
+    end
+    
+    if faceAnimation then
+        faceAnimation:Stop()
+        faceAnimation:Destroy()
+        faceAnimation = nil
+    end
+    
+    for _, animTrack in pairs(animationCache) do
+        animTrack:Stop()
+        animTrack:Destroy()
+    end
+    animationCache = {}
+end
+
+local function getAnimator()
+    if animatorCache and animatorCache.Parent then
+        return animatorCache
+    end
+    
+    local player = Players.LocalPlayer
+    if not player then return nil end
+    
+    local character = player.Character
+    if not character then return nil end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return nil end
+    
+    local animator = humanoid:FindFirstChild("Animator")
+    if not animator then
+        animator = Instance.new("Animator")
+        animator.Parent = humanoid
+    end
+    
+    animatorCache = animator
+    return animator
+end
+
+local function playAnimations()
+    if isDead or not systemRunning then return end
+    
+    local animator = getAnimator()
+    if not animator then return end
+    
+    -- 身体动画
+    if not animationCache[BODY_ANIMATION_ID] then
+        local animation = Instance.new("Animation")
+        animation.AnimationId = BODY_ANIMATION_ID
+        animationCache[BODY_ANIMATION_ID] = animator:LoadAnimation(animation)
+    end
+    
+    if bodyAnimation then
+        bodyAnimation:Stop()
+    end
+    
+    bodyAnimation = animationCache[BODY_ANIMATION_ID]
+    bodyAnimation:Play()
+    
+    -- 表情动画
+    if not animationCache[FACE_ANIMATION_ID] then
+        local faceAnim = Instance.new("Animation")
+        faceAnim.AnimationId = FACE_ANIMATION_ID
+        animationCache[FACE_ANIMATION_ID] = animator:LoadAnimation(faceAnim)
+    end
+    
+    if faceAnimation then
+        faceAnimation:Stop()
+    end
+    
+    faceAnimation = animationCache[FACE_ANIMATION_ID]
+    faceAnimation:Play()
+end
+
+local function playMusic()
+    if isDead then return end
+    
+    stopMusic()
+    
+    local sound = Instance.new("Sound")
+    sound.SoundId = MUSIC_ID
+    sound.Volume = 0  -- 开始音量为0，用于淡入
+    sound.Looped = false
+    sound.Name = "MusicTrack"
+    
+    -- 从41秒开始播放
+    sound.TimePosition = MUSIC_START_TIME
+    
+    local targetParent = SoundService or Workspace
+    sound.Parent = targetParent
+    
+    sound:Play()
+    currentMusic = sound
+    
+    -- 淡入效果：从0到最大音量
+    fadeInTween = TweenService:Create(
+        sound,
+        TweenInfo.new(FADE_IN_DURATION, Enum.EasingStyle.Linear),
+        {Volume = MAX_VOLUME}  -- 淡入到最大音量
+    )
+    fadeInTween:Play()
+    
+    -- 计算淡出开始时间（音乐结束前1秒）
+    local musicDuration = MUSIC_END_TIME - MUSIC_START_TIME  -- 11秒
+    local fadeOutStartTime = musicDuration - FADE_OUT_DURATION  -- 10秒后开始淡出
+    
+    -- 淡出效果：从最大音量到0
+    task.delay(fadeOutStartTime, function()
+        if currentMusic == sound and sound.Playing and systemRunning then
+            fadeOutTween = TweenService:Create(
+                sound,
+                TweenInfo.new(FADE_OUT_DURATION, Enum.EasingStyle.Linear),
+                {Volume = 0}  -- 从最大音量淡出到0
+            )
+            fadeOutTween:Play()
+        end
+    end)
+    
+    -- 11秒后停止音乐
+    task.delay(musicDuration, function()
+        if currentMusic == sound and systemRunning then
+            if sound.Playing then
+                sound:Stop()
+            end
+            -- 音乐停止后，确保系统也停止
+            stopSystem()
+        end
+    end)
+    
+    -- 如果音乐自然结束，也停止系统
+    sound.Ended:Connect(function()
+        if systemRunning then
+            stopSystem()
+        end
+    end)
+    
+    return sound
+end
+
+local function sendLyric(message)
+    if isDead or not systemRunning then return end
+    
+    pcall(function()
+        if TextChatService and TextChatService.TextChannels then
+            local channel = TextChatService.TextChannels.RBXGeneral or 
+                           TextChatService.TextChannels:FindFirstChild("RBXGeneralChannel")
+            if channel and channel.SendAsync then
+                channel:SendAsync(message)
+                return
+            end
+        end
+    end)
+    
+    pcall(function()
+        local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if chatEvents then
+            local sayRequest = chatEvents:FindFirstChild("SayMessageRequest")
+            if sayRequest then
+                sayRequest:FireServer(message, "All")
+                return
+            end
+        end
+    end)
+    
+    pcall(function()
+        local player = Players.LocalPlayer
+        if player and player.Chat then
+            player:Chat(message)
+            return
+        end
+    end)
+end
+
+local function startSystem()
+    if isDead or systemRunning then return end
+    
+    systemRunning = true
+    lyricsSent = {}  -- 重置已发送的歌词记录
+    
+    -- 显示成就
+    task.spawn(showAchievement)
+    
+    -- 等待0.5秒后开始
+    task.wait(0.5)
+    
+    -- 开始播放音乐和动画
+    playMusic()
+    playAnimations()
+    
+    -- 创建一个新线程来处理歌词
+    task.spawn(function()
+        local startTime = os.clock()
+        local musicDuration = MUSIC_END_TIME - MUSIC_START_TIME  -- 11秒
+        
+        -- 将歌词时间排序
+        local lyricTimes = {}
+        for time in pairs(LYRIC_TIMELINE) do
+            table.insert(lyricTimes, time)
+        end
+        table.sort(lyricTimes)
+        
+        -- 持续检查直到11秒过去或系统停止
+        while systemRunning and (os.clock() - startTime) < musicDuration do
+            local elapsedTime = os.clock() - startTime
+            
+            -- 检查并发送歌词（确保每条歌词只发送一次）
+            for _, timeOffset in ipairs(lyricTimes) do
+                if elapsedTime >= timeOffset and elapsedTime < timeOffset + 0.5 and not lyricsSent[timeOffset] then
+                    lyricsSent[timeOffset] = true  -- 标记为已发送
+                    sendLyric(LYRIC_TIMELINE[timeOffset])
+                end
+            end
+            
+            task.wait(0.1)  -- 每0.1秒检查一次，避免过于频繁
+        end
+        
+        -- 11秒到了，停止系统
+        if systemRunning then
+            stopSystem()
+        end
+    end)
+end
+
+local function stopSystem()
+    if not systemRunning then return end
+    
+    print("系统停止")
+    systemRunning = false
+    
+    -- 停止音乐
+    stopMusic()
+    
+    -- 停止动画
+    stopAnimation()
+    
+    -- 清理已发送歌词记录
+    lyricsSent = {}
+end
+
+local function cleanupSystem()
+    isDead = true
+    stopSystem()
+    animatorCache = nil
+    animationCache = {}
+    achievementShown = false
+end
+
+local player = Players.LocalPlayer
+if not player then
+    Players.PlayerAdded:Wait()
+    player = Players.LocalPlayer
+end
+
+local function onCharacterAdded(character)
+    isDead = false
+    animatorCache = nil
+    animationCache = {}
+    achievementShown = false
+    
+    -- 延迟一点开始，确保角色完全加载
+    task.wait(1)  -- 延长等待时间，确保角色完全加载
+    
+    -- 开始系统
+    task.spawn(startSystem)
+    
+    local humanoid = character:WaitForChild("Humanoid")
+    humanoid.Died:Connect(function()
+        cleanupSystem()
+    end)
+end
+
+if player.Character then
+    onCharacterAdded(player.Character)
+end
+
+player.CharacterAdded:Connect(onCharacterAdded)
+player.CharacterRemoving:Connect(cleanupSystem)
