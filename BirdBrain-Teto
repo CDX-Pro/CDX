@@ -11,6 +11,7 @@ local MUSIC_START_TIME = 41  -- 从41秒开始
 local MUSIC_END_TIME = 52    -- 到52秒结束
 local FADE_IN_DURATION = 1   -- 淡入1秒
 local FADE_OUT_DURATION = 1  -- 淡出1秒
+local MAX_VOLUME = 10        -- 最大音量
 
 local LYRIC_TIMELINE = {
     [1] = "but i falter on the forethought", -- 0:42 (相对时间1秒)
@@ -175,11 +176,11 @@ local function playMusic()
     sound:Play()
     currentMusic = sound
     
-    -- 淡入效果
+    -- 淡入效果：从0到最大音量
     fadeInTween = TweenService:Create(
         sound,
         TweenInfo.new(FADE_IN_DURATION, Enum.EasingStyle.Linear),
-        {Volume = 1.0}
+        {Volume = MAX_VOLUME}  -- 淡入到最大音量
     )
     fadeInTween:Play()
     
@@ -187,13 +188,13 @@ local function playMusic()
     local musicDuration = MUSIC_END_TIME - MUSIC_START_TIME  -- 11秒
     local fadeOutStartTime = musicDuration - FADE_OUT_DURATION  -- 10秒后开始淡出
     
-    -- 淡出效果
+    -- 淡出效果：从最大音量到0
     task.delay(fadeOutStartTime, function()
         if currentMusic == sound and sound.Playing and systemRunning then
             fadeOutTween = TweenService:Create(
                 sound,
                 TweenInfo.new(FADE_OUT_DURATION, Enum.EasingStyle.Linear),
-                {Volume = 0}
+                {Volume = 0}  -- 从最大音量淡出到0
             )
             fadeOutTween:Play()
         end
