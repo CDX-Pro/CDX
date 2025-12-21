@@ -1,0 +1,696 @@
+local Players = game:GetService("Players")
+local SoundService = game:GetService("SoundService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TextChatService = game:GetService("TextChatService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local MUSIC_ID = "rbxassetid://83287682363564"
+local MUSIC_DURATION = 243  -- 4:03 = 243 seconds
+local FADE_OUT_START = 235  -- 3:55开始淡出
+local FADE_DURATION = 8
+
+-- 完整的时间轴，包含之前和新的歌词
+-- 透明度变为0%时（158秒）立即说歌词，其他新歌词在原时间基础上推迟1秒
+local LYRIC_TIMELINE = {
+    -- 之前的歌词（30秒到125秒）
+    [30] = "Would you Dare Look",
+    [32] = "Over your Shoulder",
+    [34] = "Do you fear what's",
+    [36] = "Coming 'round the Bend",
+    [38] = "Do you know what",
+    [40] = "Comes while you're Growing Older",
+    [42] = "Would you ever",
+    [44] = "Turn your Back Again?",
+    [46] = "Does it Stop Your Heart,",
+    [49] = "dose your Hair turn Greyer",
+    [50] = "let me tell you now it's gonna",
+    [52] = "Be, O-Kay Baby,",
+    [54] = "I MISS THE QUIEEEET",
+    [58] = "I CAN' T DENY IIIIIIIT",
+    [62] = "AM I TO FIGHT IIIIIIIIIT' CAUSE",
+    [66] = "EVEN AFTER ALL IS SAID AND",
+    [68] = "DONE",
+    [69] = "I only want to",
+    [70] = "Stay.",
+    [71] = "The Endless Void couldn't Fathom",
+    [75] = "the Fate I've Wished upon a Star",
+    [78] = "In your vessels all, so very Unbecoming,",
+    [82] = "I'll turn you All.",
+    [84] = "INTO A MARTYR",
+    [86] = "When you're brought to your knees,",
+    [88] = "and there's Nowhere to Run,",
+    [90] = "just Let me Tell you baby",
+    [92] = "HERE IT COMES",
+    [93] = "NOW",
+    [94] = "I MISS THE QUIEEEET",
+    [98] = "I CAN'T DENY IIIIIIIT",
+    [102] = "AM I TO FIGHT IIIIIIIIIT",
+    [107] = "OR BE DELIGHTEEEEEED?",
+    [110] = "I MISS THE QUIET,",
+    [112] = "YES I DO",
+    [114] = "I CAN' T DENY IT,",
+    [116] = "I KNOW IT' S TRUE,",
+    [117] = "OH BABY,",
+    [118] = "I MISS THE QUIEEEET, but",
+    [122] = "EVEN AFTER ALL IS SAID AND",
+    [124] = "DONE",
+    [125] = "We' ve Only Just BeGun.",
+    
+    -- 新的歌词 - 第一个歌词在158秒（透明度变为0%时立即发送）
+    [158] = "I MISS THE QUIEEEET",  -- 2:38透明度变为0%时立即说歌词
+    [163] = "I CAN'T DENY IIIIIIT",  -- 原162秒推迟5秒到163秒
+    [167] = "AM TO FIGHT IIIIIIIIIT",  -- 原166秒推迟1秒到167秒
+    [171] = "OR BE DELIGHTEEEEEED?",  -- 原170秒推迟1秒到171秒
+    [175] = "I MISS THE QUIEEEET",  -- 原174秒推迟1秒到175秒
+    [179] = "I CAN'T DENY IIIIIIT",  -- 原178秒推迟1秒到179秒
+    [183] = "AM I TO FIGHT IIIIIIIT",  -- 原182秒推迟1秒到183秒
+    [187] = "OR BE DELIGHTEEEEEEED?",  -- 原186秒推迟1秒到187秒
+    [191] = "I MISS THE QUIET,",  -- 原190秒推迟1秒到191秒
+    [193] = "YES I DO",  -- 原192秒推迟1秒到193秒
+    [195] = "YOU CAN'T DENY IT,",  -- 原194秒推迟1秒到195秒
+    [197] = "OH BABY,",  -- 原196秒推迟1秒到197秒
+    [199] = "I MISS THE QUITE LITTLE,",  -- 原198秒推迟1秒到199秒
+    [201] = "THINGS I'D BEFORE I",  -- 原200秒推迟1秒到201秒
+    [203] = "ENTERED ALL THE VIOLEEEENCE,",  -- 原202秒推迟1秒到203秒
+    [205] = "DEFINING SILVER LINING",  -- 原204秒推迟1秒到205秒
+    [207] = "I MISS THE QUIEEEEEEEET",  -- 原206秒推迟1秒到207秒
+    [211] = "I CAN'T DENY IT,",  -- 原210秒推迟1秒到211秒
+    [213] = "I KONW IT'S TRUE, OH BABY,",  -- 原212秒推迟1秒到213秒
+    [215] = "I MISS THE QUIEEEET,but",  -- 原214秒推迟1秒到215秒
+    [219] = "EVEN AFTER ALL IS SAID AND",  -- 原218秒推迟1秒到219秒
+    [221] = "DONE",  -- 原220秒推迟1秒到221秒
+    [222] = "I'm Only Having Fun.",  -- 原221秒推迟1秒到222秒
+    [225] = "I'm Only Having Fun.",  -- 原224秒推迟1秒到225秒
+    [229] = "I'm Only Having Fun.",  -- 原228秒推迟1秒到229秒
+    [233] = "I'm Only Having Fun.",  -- 原232秒推迟1秒到233秒
+}
+
+-- 动画时间轴 - 2:38-3:41播放112997181606542
+local ANIMATION_TIMELINE = {
+    {0, 54, "rbxassetid://83613946513780"},
+    {54, 70, "rbxassetid://112997181606542"},
+    {71, 93, "rbxassetid://83613946513780"},
+    {94, 157, "rbxassetid://112997181606542"},  -- 到2:37结束
+    {158, 221, "rbxassetid://112997181606542"},  -- 2:38到3:41，播放112997181606542
+    {222, 243, "rbxassetid://112997181606542"}  -- 3:42到结束，继续播放112997181606542
+}
+
+local currentMusic = nil
+local fadeOutTween = nil
+local currentAnimation = nil
+local animationCache = {}
+local musicStartTime = 0
+local systemRunning = false
+local mainThread = nil
+local animatorCache = nil
+local isDead = false
+local musicEndedConnection = nil
+local originalPosition = nil
+local originalCFrame = nil
+local undergroundDepth = 10
+local transparencyTween = nil
+local emergeTween = nil
+local transparencyParts = {}
+local transparencyRestored = false
+local hasTransparentPhaseStarted = false
+local hasTransparentPhaseEnded = false
+local hasFinalTransparentStarted = false
+local musicEnded = false
+
+-- 聊天检测函数
+local function isChatEnabled()
+    local success, result = pcall(function()
+        if TextChatService and TextChatService.TextChannels then
+            return true
+        end
+        return false
+    end)
+    return success and result
+end
+
+local function cleanupTemporaryObjects()
+    -- 清理临时对象
+end
+
+local function trackObject(obj)
+    -- 追踪创建的对象
+end
+
+local function stopMusic()
+    if currentMusic then
+        if fadeOutTween then
+            fadeOutTween:Cancel()
+            fadeOutTween = nil
+        end
+        
+        if musicEndedConnection then
+            musicEndedConnection:Disconnect()
+            musicEndedConnection = nil
+        end
+        
+        currentMusic:Stop()
+        currentMusic:Destroy()
+        currentMusic = nil
+    end
+end
+
+local function stopAnimation()
+    if currentAnimation then
+        currentAnimation:Stop()
+        currentAnimation:Destroy()
+        currentAnimation = nil
+    end
+    
+    for _, animTrack in pairs(animationCache) do
+        animTrack:Stop()
+        animTrack:Destroy()
+    end
+    animationCache = {}
+end
+
+local function getCharacterParts()
+    local player = Players.LocalPlayer
+    if not player then return {} end
+    
+    local character = player.Character
+    if not character then return {} end
+    
+    local parts = {}
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            table.insert(parts, part)
+        end
+    end
+    
+    return parts
+end
+
+local function setPlayerTransparency(transparency)
+    local parts = getCharacterParts()
+    for _, part in ipairs(parts) do
+        part.Transparency = transparency
+    end
+end
+
+local function fadePlayerTransparency(fromValue, toValue, duration)
+    local parts = getCharacterParts()
+    if #parts == 0 then return end
+    
+    local startTime = os.clock()
+    local elapsedTime = 0
+    
+    while elapsedTime < duration and systemRunning do
+        elapsedTime = os.clock() - startTime
+        local progress = math.min(elapsedTime / duration, 1)
+        local currentTransparency = fromValue + (toValue - fromValue) * progress
+        
+        for _, part in ipairs(parts) do
+            part.Transparency = currentTransparency
+        end
+        
+        task.wait(0.05)
+    end
+    
+    if systemRunning then
+        for _, part in ipairs(parts) do
+            part.Transparency = toValue
+        end
+    end
+end
+
+local function restorePlayerTransparency()
+    if transparencyRestored then return end
+    
+    transparencyRestored = true
+    setPlayerTransparency(0)  -- 恢复为0%透明度
+    
+    print("玩家透明度已恢复为0%")
+end
+
+local function getCharacterRoot()
+    local player = Players.LocalPlayer
+    if not player then return nil end
+    
+    local character = player.Character
+    if not character then return nil end
+    
+    return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+end
+
+local function sinkCharacter()
+    local rootPart = getCharacterRoot()
+    if not rootPart then return end
+    
+    originalPosition = rootPart.Position
+    originalCFrame = rootPart.CFrame
+    
+    local undergroundCFrame = CFrame.new(
+        originalPosition.X,
+        originalPosition.Y - undergroundDepth,
+        originalPosition.Z
+    ) * CFrame.Angles(
+        originalCFrame:ToEulerAnglesXYZ()
+    )
+    
+    rootPart.CFrame = undergroundCFrame
+    rootPart.Anchored = true
+end
+
+local function emergeCharacter()
+    local rootPart = getCharacterRoot()
+    if not rootPart or not originalCFrame then return end
+    
+    emergeTween = TweenService:Create(
+        rootPart,
+        TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {CFrame = originalCFrame}
+    )
+    
+    emergeTween:Play()
+    
+    task.delay(2, function()
+        if rootPart and rootPart:IsA("BasePart") and systemRunning then
+            rootPart.Anchored = false
+        end
+    end)
+end
+
+local function restoreCharacter()
+    local rootPart = getCharacterRoot()
+    if not rootPart then return end
+    
+    if transparencyTween then
+        transparencyTween:Cancel()
+        transparencyTween = nil
+    end
+    
+    if emergeTween then
+        emergeTween:Cancel()
+        emergeTween = nil
+    end
+    
+    if originalCFrame then
+        rootPart.CFrame = originalCFrame
+    end
+    rootPart.Anchored = false
+    
+    restorePlayerTransparency()
+end
+
+local function cleanupWhiteBlocks()
+    -- 清理白色方块
+    local player = Players.LocalPlayer
+    if not player then return end
+    
+    local character = player.Character
+    if not character then return end
+    
+    for _, obj in ipairs(character:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            if obj.Name == "WhiteBlock" or obj.Name == "Part" or obj.Name == "Block" then
+                if obj.BrickColor == BrickColor.new("White") or 
+                   obj.Color == Color3.new(1, 1, 1) then
+                    pcall(function() obj:Destroy() end)
+                end
+            end
+        end
+    end
+end
+
+local function getAnimator()
+    if animatorCache and animatorCache.Parent then
+        return animatorCache
+    end
+    
+    local player = Players.LocalPlayer
+    if not player then return nil end
+    
+    local character = player.Character
+    if not character then return nil end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return nil end
+    
+    local animator = humanoid:FindFirstChild("Animator")
+    if not animator then
+        animator = Instance.new("Animator")
+        animator.Parent = humanoid
+    end
+    
+    animatorCache = animator
+    return animator
+end
+
+local function playAnimation(animId)
+    if isDead or not systemRunning then return end
+    
+    local animator = getAnimator()
+    if not animator then return end
+    
+    if not animationCache[animId] then
+        local animation = Instance.new("Animation")
+        animation.AnimationId = animId
+        animationCache[animId] = animator:LoadAnimation(animation)
+    end
+    
+    if currentAnimation then
+        currentAnimation:Stop()
+    end
+    
+    currentAnimation = animationCache[animId]
+    currentAnimation:Play()
+end
+
+local function playMusic()
+    if isDead then return end
+    
+    stopMusic()
+    
+    local sound = Instance.new("Sound")
+    sound.SoundId = MUSIC_ID
+    sound.Volume = 10
+    sound.Looped = false
+    sound.Name = "LyricMusic"
+    
+    local targetParent = SoundService or Workspace
+    sound.Parent = targetParent
+    
+    sound:Play()
+    currentMusic = sound
+    musicStartTime = os.clock()
+    
+    musicEndedConnection = sound.Ended:Connect(function()
+        if systemRunning then
+            musicEnded = true
+            stopSystem()
+        end
+    end)
+    
+    -- 在3:55开始淡出
+    task.delay(FADE_OUT_START, function()
+        if systemRunning and currentMusic and currentMusic.Playing then
+            fadeOutTween = TweenService:Create(
+                currentMusic,
+                TweenInfo.new(FADE_DURATION, Enum.EasingStyle.Linear),
+                {Volume = 0}
+            )
+            fadeOutTween:Play()
+        end
+    end)
+    
+    -- 音乐结束后停止系统
+    task.delay(MUSIC_DURATION, function()
+        if systemRunning and currentMusic and currentMusic.Playing then
+            musicEnded = true
+            stopSystem()
+        end
+    end)
+    
+    return sound
+end
+
+local function sendLyric(message)
+    if isDead or not systemRunning then return end
+    
+    if message == "" then return end
+    
+    -- 尝试使用TextChatService（Roblox新聊天系统）
+    local success1 = pcall(function()
+        if TextChatService and TextChatService.TextChannels then
+            local channel = TextChatService.TextChannels.RBXGeneral
+            if channel and channel.SendAsync then
+                channel:SendAsync(message)
+                return true
+            end
+        end
+        return false
+    end)
+    
+    if success1 then return end
+    
+    -- 尝试使用旧聊天系统
+    local success2 = pcall(function()
+        local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if chatEvents then
+            local sayRequest = chatEvents:FindFirstChild("SayMessageRequest")
+            if sayRequest then
+                sayRequest:FireServer(message, "All")
+                return true
+            end
+        end
+        return false
+    end)
+    
+    if success2 then return end
+    
+    -- 如果以上都失败，使用玩家Chat方法
+    local success3 = pcall(function()
+        local player = Players.LocalPlayer
+        if player and player.Chat then
+            player:Chat(message)
+            return true
+        end
+        return false
+    end)
+    
+    if not success3 then
+        warn("无法发送歌词消息，聊天系统可能不可用")
+    end
+end
+
+local function startLyricSystem()
+    local lyricKeys = {}
+    for time in pairs(LYRIC_TIMELINE) do
+        table.insert(lyricKeys, time)
+    end
+    table.sort(lyricKeys)
+    
+    local currentLyricIndex = 1
+    local totalLyrics = #lyricKeys
+    
+    local currentAnimIndex = 1
+    local totalAnims = #ANIMATION_TIMELINE
+    
+    local lastAnimId = nil
+    local hasEmerged = false
+    
+    while not isDead and systemRunning do
+        local currentTime = os.clock() - musicStartTime
+        
+        if currentTime >= MUSIC_DURATION then
+            break
+        end
+        
+        -- 从地下升起
+        if currentTime >= 28 and currentTime <= 30 and not hasEmerged then
+            task.spawn(function()
+                hasEmerged = true
+                emergeCharacter()
+            end)
+        end
+        
+        -- 透明度控制
+        if currentTime >= 126 and currentTime <= 157 and not hasTransparentPhaseStarted then
+            hasTransparentPhaseStarted = true
+            task.spawn(function()
+                setPlayerTransparency(1)  -- 立即设置为100%透明度
+            end)
+        end
+        
+        -- 在158秒透明度变为0%并立即发送歌词
+        if currentTime >= 158 and currentTime <= 159 and not hasTransparentPhaseEnded then
+            hasTransparentPhaseEnded = true
+            
+            -- 先设置透明度为0%
+            setPlayerTransparency(0)
+            
+            -- 立即发送对应的歌词
+            if LYRIC_TIMELINE[158] then
+                sendLyric(LYRIC_TIMELINE[158])
+            end
+        end
+        
+        -- 在3:55（235秒）透明度变为100%
+        if currentTime >= 235 and currentTime <= 237 and not hasFinalTransparentStarted then
+            hasFinalTransparentStarted = true
+            task.spawn(function()
+                setPlayerTransparency(1)  -- 立即设置为100%透明度
+            end)
+        end
+        
+        -- 处理其他歌词（跳过已经在158秒发送的歌词）
+        -- 从第2个歌词开始处理
+        local skipFirstLyric = hasTransparentPhaseEnded  -- 如果158秒的歌词已经发送过，则跳过
+        if skipFirstLyric then
+            -- 确保currentLyricIndex指向第二个歌词
+            for i, time in ipairs(lyricKeys) do
+                if time > 158 then
+                    if currentLyricIndex < i then
+                        currentLyricIndex = i
+                    end
+                    break
+                end
+            end
+        end
+        
+        if currentLyricIndex <= totalLyrics then
+            local targetTime = lyricKeys[currentLyricIndex]
+            
+            -- 跳过158秒的歌词（已经处理过）
+            if targetTime > 158 and currentTime >= targetTime then
+                sendLyric(LYRIC_TIMELINE[targetTime])
+                currentLyricIndex = currentLyricIndex + 1
+            elseif targetTime == 158 and not skipFirstLyric then
+                -- 如果158秒的歌词还没有处理（理论上不会发生，因为上面已经处理了）
+                sendLyric(LYRIC_TIMELINE[158])
+                currentLyricIndex = currentLyricIndex + 1
+            elseif targetTime < 158 and currentTime >= targetTime then
+                -- 处理158秒之前的歌词
+                sendLyric(LYRIC_TIMELINE[targetTime])
+                currentLyricIndex = currentLyricIndex + 1
+            end
+        end
+        
+        -- 处理动画
+        if currentAnimIndex <= totalAnims then
+            local animStart = ANIMATION_TIMELINE[currentAnimIndex][1]
+            local animEnd = ANIMATION_TIMELINE[currentAnimIndex][2]
+            local animId = ANIMATION_TIMELINE[currentAnimIndex][3]
+            
+            if currentTime >= animStart and currentTime <= animEnd then
+                if animId ~= lastAnimId then
+                    playAnimation(animId)
+                    lastAnimId = animId
+                end
+            elseif currentTime > animEnd then
+                currentAnimIndex = currentAnimIndex + 1
+                if currentAnimIndex <= totalAnims and currentTime >= ANIMATION_TIMELINE[currentAnimIndex][1] then
+                    local nextAnimId = ANIMATION_TIMELINE[currentAnimIndex][3]
+                    if nextAnimId ~= lastAnimId then
+                        playAnimation(nextAnimId)
+                        lastAnimId = nextAnimId
+                    end
+                end
+            end
+        end
+        
+        local nextEventTime = math.min(
+            currentLyricIndex <= totalLyrics and lyricKeys[currentLyricIndex] or math.huge,
+            currentAnimIndex <= totalAnims and ANIMATION_TIMELINE[currentAnimIndex][1] or math.huge,
+            MUSIC_DURATION
+        )
+        
+        if nextEventTime ~= math.huge then
+            local waitTime = nextEventTime - currentTime
+            if waitTime > 0.1 then
+                task.wait(0.05)
+            else
+                task.wait(math.max(0.001, waitTime))
+            end
+        else
+            task.wait(0.1)
+        end
+    end
+    
+    -- 当循环结束时，意味着音乐已经结束或系统已停止
+    if systemRunning and musicEnded then
+        -- 音乐结束后恢复玩家透明度为0%并停止动作
+        task.wait(0.5)  -- 等待半秒确保所有操作完成
+        restorePlayerTransparency()
+        stopAnimation()
+        print("音乐结束，已恢复透明度并停止动画")
+    end
+end
+
+local function startSystem()
+    if isDead or systemRunning then return end
+    
+    systemRunning = true
+    musicEnded = false
+    transparencyRestored = false
+    hasTransparentPhaseStarted = false
+    hasTransparentPhaseEnded = false
+    hasFinalTransparentStarted = false
+    
+    cleanupWhiteBlocks()
+    setPlayerTransparency(0)
+    sinkCharacter()
+    
+    playMusic()
+    
+    mainThread = task.spawn(function()
+        startLyricSystem()
+    end)
+end
+
+local function stopSystem()
+    if not systemRunning then return end
+    
+    systemRunning = false
+    
+    if mainThread then
+        task.cancel(mainThread)
+        mainThread = nil
+    end
+    
+    stopMusic()
+    stopAnimation()
+    restoreCharacter()
+    cleanupWhiteBlocks()
+    
+    print("系统已停止，玩家透明度恢复为0%，动画已停止")
+end
+
+local function cleanupSystem()
+    isDead = true
+    stopSystem()
+    animatorCache = nil
+    animationCache = {}
+end
+
+local player = Players.LocalPlayer
+if not player then
+    Players.PlayerAdded:Wait()
+    player = Players.LocalPlayer
+end
+
+local function onCharacterAdded(character)
+    isDead = false
+    animatorCache = nil
+    animationCache = {}
+    musicEnded = false
+    transparencyRestored = false
+    hasTransparentPhaseStarted = false
+    hasTransparentPhaseEnded = false
+    hasFinalTransparentStarted = false
+    
+    setPlayerTransparency(0)
+    
+    character:WaitForChild("Humanoid")
+    
+    startSystem()
+    
+    local humanoid = character:WaitForChild("Humanoid")
+    humanoid.Died:Connect(function()
+        cleanupSystem()
+    end)
+end
+
+if player.Character then
+    onCharacterAdded(player.Character)
+end
+
+player.CharacterAdded:Connect(onCharacterAdded)
+player.CharacterRemoving:Connect(cleanupSystem)
+
+task.wait(1)
+startSystem()
+
+-- 定期清理白色方块
+while true do
+    task.wait(5)
+    if systemRunning then
+        cleanupWhiteBlocks()
+    end
+end
