@@ -1,0 +1,175 @@
+local Players = game:GetService("Players")
+local SoundService = game:GetService("SoundService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local StarterGui = game:GetService("StarterGui")
+
+-- 音乐配置
+local MUSIC_ID = "rbxassetid://79698476826562"
+local MUSIC_START_TIME = 36
+local MUSIC_END_TIME = 49
+local MUSIC_DURATION = 13
+
+-- 动画配置
+local BODY_ANIMATION_ID = "rbxassetid://132579883436681"
+local FACE_ANIMATION_ID = "rbxassetid://14366558676"
+
+-- 系统状态
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local animator = humanoid:FindFirstChild("Animator") or Instance.new("Animator")
+animator.Parent = humanoid
+
+local currentMusic = nil
+local bodyAnimation = nil
+local faceAnimation = nil
+local effectActive = false
+local musicStartTime = 0
+local connections = {}
+
+-- 显示Roblox默认成就通知
+local function showAchievementNotification()
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "AKAGE - REMIX",
+            Text = "Made by LOL/Fcad/TvT\nenjoy:P",
+            Icon = "rbxassetid://127222823351908",
+            Duration = 5
+        })
+    end)
+end
+
+-- 停止所有效果
+local function stopAllEffects()
+    effectActive = false
+    
+    for _, conn in ipairs(connections) do
+        conn:Disconnect()
+    end
+    connections = {}
+    
+    if currentMusic then
+        currentMusic:Stop()
+        currentMusic:Destroy()
+        currentMusic = nil
+    end
+    
+    if bodyAnimation then
+        bodyAnimation:Stop()
+        bodyAnimation = nil
+    end
+    
+    if faceAnimation then
+        faceAnimation:Stop()
+        faceAnimation = nil
+    end
+end
+
+-- 创建并加载动画
+local function createAnimation(animId)
+    local animation = Instance.new("Animation")
+    animation.AnimationId = animId
+    return animator:LoadAnimation(animation)
+end
+
+-- 开始效果
+local function startEffects()
+    stopAllEffects()
+    
+    if not player.Character then return end
+    
+    character = player.Character
+    humanoid = character:WaitForChild("Humanoid")
+    animator = humanoid:FindFirstChild("Animator") or Instance.new("Animator")
+    animator.Parent = humanoid
+    
+    -- 显示成就通知
+    showAchievementNotification()
+    
+    -- 创建动画
+    bodyAnimation = createAnimation(BODY_ANIMATION_ID)
+    faceAnimation = createAnimation(FACE_ANIMATION_ID)
+    
+    -- 立即播放动画
+    if bodyAnimation then
+        bodyAnimation:Play()
+    end
+    
+    if faceAnimation then
+        faceAnimation:Play()
+    end
+    
+    -- 播放音乐
+    currentMusic = Instance.new("Sound")
+    currentMusic.SoundId = MUSIC_ID
+    currentMusic.Volume = 10
+    currentMusic.Looped = false
+    currentMusic.Parent = SoundService or Workspace
+    
+    -- 从36秒开始
+    currentMusic.TimePosition = MUSIC_START_TIME
+    currentMusic:Play()
+    
+    effectActive = true
+    musicStartTime = os.clock()
+    
+    -- 使用RunService.Heartbeat进行精确时间控制
+    local heartbeatConn = RunService.Heartbeat:Connect(function(deltaTime)
+        if not effectActive or not currentMusic then
+            heartbeatConn:Disconnect()
+            return
+        end
+        
+        local elapsedTime = os.clock() - musicStartTime
+        
+        if not currentMusic.Playing then
+            stopAllEffects()
+            heartbeatConn:Disconnect()
+            return
+        end
+        
+        if elapsedTime >= MUSIC_DURATION then
+            stopAllEffects()
+            heartbeatConn:Disconnect()
+        end
+    end)
+    
+    table.insert(connections, heartbeatConn)
+    
+    local endedConn = currentMusic.Ended:Connect(function()
+        stopAllEffects()
+    end)
+    
+    table.insert(connections, endedConn)
+    
+    local charRemovingConn = player.CharacterRemoving:Connect(function()
+        stopAllEffects()
+    end)
+    
+    table.insert(connections, charRemovingConn)
+end
+
+-- 立即开始
+startEffects()
+
+-- 监听角色重生
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    humanoid = character:WaitForChild("Humanoid")
+    animator = humanoid:FindFirstChild("Animator") or Instance.new("Animator")
+    animator.Parent = humanoid
+    
+    stopAllEffects()
+end)
+
+-- 监听玩家离开
+Players.PlayerRemoving:Connect(function(leavingPlayer)
+    if leavingPlayer == player then
+        stopAllEffects()
+    end
+end)
+
+-- 提供全局控制函数
+_G.StopMusicEffects = stopAllEffects
+_G.StartMusicEffects = startEffects
