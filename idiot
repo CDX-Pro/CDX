@@ -2,79 +2,71 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
--- 等待玩家加载
 local player = Players.LocalPlayer
-repeat task.wait() until player:IsDescendantOf(game)
+local ScreenGui = nil
+local Background = nil
+local TopText = nil
+local ImagesContainer = nil
+local Sound = nil
+local connection = nil
 
--- 创建UI - 使用IgnoreGuiInset确保在移动端全屏
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "YouAreAnIdiotGui"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.IgnoreGuiInset = true
-ScreenGui.Parent = player:WaitForChild("PlayerGui")
-
--- 创建白色背景
-local Background = Instance.new("Frame")
-Background.Name = "Background"
-Background.Size = UDim2.new(1, 0, 1, 0)
-Background.Position = UDim2.new(0, 0, 0, 0)
-Background.BackgroundColor3 = Color3.new(1, 1, 1)
-Background.BorderSizePixel = 0
-Background.ZIndex = 1
-Background.Parent = ScreenGui
-
--- 图片URL
-local BLACK_BG_IMAGE_ID = "rbxassetid://10418960920"  -- 黑色背景时使用
-local WHITE_BG_IMAGE_ID = "rbxassetid://10494531702"  -- 白色背景时使用
--- 音乐ID
+local BLACK_BG_IMAGE_ID = "rbxassetid://10418960920"
+local WHITE_BG_IMAGE_ID = "rbxassetid://10494531702"
 local MUSIC_ID = "rbxassetid://3200130016"
 
--- 创建顶部文字
-local TopText = Instance.new("TextLabel")
-TopText.Name = "TopText"
-TopText.Size = UDim2.new(1, 0, 0.12, 0)
-TopText.Position = UDim2.new(0, 0, 0.03, 0)
-TopText.Text = "YOU ARE AN IDIOT"
-TopText.TextScaled = true
-TopText.TextColor3 = Color3.new(0, 0, 0)
-TopText.BackgroundTransparency = 1
-TopText.Font = Enum.Font.GothamBlack
-TopText.TextSize = 28
-TopText.TextStrokeTransparency = 0
-TopText.TextStrokeColor3 = Color3.new(1, 1, 1)
-TopText.ZIndex = 3
-TopText.Parent = ScreenGui
+local isWhite = true
+local flashSpeed = 1
+local flashVariation = 0.3
+local elapsedTime = 0
 
--- 创建图片容器
-local ImagesContainer = Instance.new("Frame")
-ImagesContainer.Name = "ImagesContainer"
-ImagesContainer.Size = UDim2.new(1, 0, 0.6, 0)
-ImagesContainer.Position = UDim2.new(0, 0, 0.2, 0)
-ImagesContainer.BackgroundTransparency = 1
-ImagesContainer.ZIndex = 2
-ImagesContainer.Parent = ScreenGui
+-- 清理函数
+local function cleanup()
+    if connection then
+        connection:Disconnect()
+        connection = nil
+    end
+    if Sound then
+        Sound:Stop()
+        Sound:Destroy()
+        Sound = nil
+    end
+    if ScreenGui then
+        ScreenGui:Destroy()
+        ScreenGui = nil
+    end
+end
 
--- 创建三个居中排列的笑脸图片
-for i = 1, 3 do
-    local ImageContainer = Instance.new("Frame")
-    ImageContainer.Name = "ImageContainer" .. i
-    ImageContainer.Size = UDim2.new(0.28, 0, 0.8, 0)
-    ImageContainer.BackgroundTransparency = 1
-    ImageContainer.ZIndex = 2
-    ImageContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+-- 闪烁函数
+local function flash()
+    isWhite = not isWhite
     
-    local SmileyImage = Instance.new("ImageLabel")
-    SmileyImage.Name = "Smiley"
-    SmileyImage.Size = UDim2.new(1, 0, 1, 0)
-    SmileyImage.Position = UDim2.new(0, 0, 0, 0)
-    SmileyImage.Image = BLACK_BG_IMAGE_ID  -- 初始使用黑色背景的图片
-    SmileyImage.ScaleType = Enum.ScaleType.Fit
-    SmileyImage.BackgroundTransparency = 1
-    SmileyImage.ZIndex = 2
-    SmileyImage.Parent = ImageContainer
-    
-    ImageContainer.Parent = ImagesContainer
+    if isWhite then
+        Background.BackgroundColor3 = Color3.new(1, 1, 1)
+        TopText.TextColor3 = Color3.new(0, 0, 0)
+        TopText.TextStrokeColor3 = Color3.new(1, 1, 1)
+        
+        for _, container in ipairs(ImagesContainer:GetChildren()) do
+            if container:IsA("Frame") then
+                local smiley = container:FindFirstChild("Smiley")
+                if smiley then
+                    smiley.Image = WHITE_BG_IMAGE_ID
+                end
+            end
+        end
+    else
+        Background.BackgroundColor3 = Color3.new(0, 0, 0)
+        TopText.TextColor3 = Color3.new(1, 1, 1)
+        TopText.TextStrokeColor3 = Color3.new(0, 0, 0)
+        
+        for _, container in ipairs(ImagesContainer:GetChildren()) do
+            if container:IsA("Frame") then
+                local smiley = container:FindFirstChild("Smiley")
+                if smiley then
+                    smiley.Image = BLACK_BG_IMAGE_ID
+                end
+            end
+        end
+    end
 end
 
 -- 图片位置计算函数
@@ -86,71 +78,6 @@ local function updateImagePositions()
         end
     end
 end
-
--- 创建并播放音乐 - 设置音量为最大
-local Sound = Instance.new("Sound")
-Sound.SoundId = MUSIC_ID
-Sound.Name = "IdiotMusic"
-Sound.Looped = true
-Sound.Volume = 10  -- 设置为最大音量
-Sound.Parent = ScreenGui
-
-task.wait(0.5)
-Sound:Play()
-
--- 闪烁效果变量
-local isWhite = true
-local flashSpeed = 1
-local flashVariation = 0.3
-local elapsedTime = 0
-
--- 闪烁函数 - 根据背景颜色切换不同图片
-local function flash()
-    isWhite = not isWhite
-    
-    if isWhite then
-        -- 白色背景：文字黑色，使用白色背景的图片
-        Background.BackgroundColor3 = Color3.new(1, 1, 1)
-        TopText.TextColor3 = Color3.new(0, 0, 0)
-        TopText.TextStrokeColor3 = Color3.new(1, 1, 1)
-        
-        for _, container in ipairs(ImagesContainer:GetChildren()) do
-            if container:IsA("Frame") then
-                local smiley = container:FindFirstChild("Smiley")
-                if smiley then
-                    smiley.Image = WHITE_BG_IMAGE_ID  -- 切换为白色背景的图片
-                end
-            end
-        end
-    else
-        -- 黑色背景：文字白色，使用黑色背景的图片
-        Background.BackgroundColor3 = Color3.new(0, 0, 0)
-        TopText.TextColor3 = Color3.new(1, 1, 1)
-        TopText.TextStrokeColor3 = Color3.new(0, 0, 0)
-        
-        for _, container in ipairs(ImagesContainer:GetChildren()) do
-            if container:IsA("Frame") then
-                local smiley = container:FindFirstChild("Smiley")
-                if smiley then
-                    smiley.Image = BLACK_BG_IMAGE_ID  -- 切换为黑色背景的图片
-                end
-            end
-        end
-    end
-end
-
--- 连接闪烁效果
-local connection
-connection = RunService.RenderStepped:Connect(function(delta)
-    elapsedTime = elapsedTime + delta
-    
-    local currentFlashSpeed = flashSpeed + (math.random() * flashVariation * 2 - flashVariation)
-    
-    if elapsedTime >= currentFlashSpeed then
-        elapsedTime = 0
-        flash()
-    end
-end)
 
 -- 适应屏幕大小变化的函数
 local function adjustForScreen()
@@ -189,31 +116,140 @@ local function adjustForScreen()
     end
 end
 
--- 监听屏幕大小变化
-workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-    task.wait(0.1)
-    adjustForScreen()
-end)
+-- 创建UI的主要函数
+local function createUI()
+    -- 清理旧的UI
+    cleanup()
+    
+    -- 创建UI - 使用IgnoreGuiInset确保在移动端全屏
+    ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "YouAreAnIdiotGui"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ScreenGui.IgnoreGuiInset = true
+    ScreenGui.Parent = player:WaitForChild("PlayerGui")
 
--- 初始调整
-task.wait(0.5)
-adjustForScreen()
-updateImagePositions()
+    -- 创建白色背景
+    Background = Instance.new("Frame")
+    Background.Name = "Background"
+    Background.Size = UDim2.new(1, 0, 1, 0)
+    Background.Position = UDim2.new(0, 0, 0, 0)
+    Background.BackgroundColor3 = Color3.new(1, 1, 1)
+    Background.BorderSizePixel = 0
+    Background.ZIndex = 1
+    Background.Parent = ScreenGui
 
--- 清理函数
-local function cleanup()
-    if connection then
-        connection:Disconnect()
-        connection = nil
+    -- 创建顶部文字
+    TopText = Instance.new("TextLabel")
+    TopText.Name = "TopText"
+    TopText.Size = UDim2.new(1, 0, 0.12, 0)
+    TopText.Position = UDim2.new(0, 0, 0.03, 0)
+    TopText.Text = "YOU ARE AN IDIOT"
+    TopText.TextScaled = true
+    TopText.TextColor3 = Color3.new(0, 0, 0)
+    TopText.BackgroundTransparency = 1
+    TopText.Font = Enum.Font.GothamBlack
+    TopText.TextSize = 28
+    TopText.TextStrokeTransparency = 0
+    TopText.TextStrokeColor3 = Color3.new(1, 1, 1)
+    TopText.ZIndex = 3
+    TopText.Parent = ScreenGui
+
+    -- 创建图片容器
+    ImagesContainer = Instance.new("Frame")
+    ImagesContainer.Name = "ImagesContainer"
+    ImagesContainer.Size = UDim2.new(1, 0, 0.6, 0)
+    ImagesContainer.Position = UDim2.new(0, 0, 0.2, 0)
+    ImagesContainer.BackgroundTransparency = 1
+    ImagesContainer.ZIndex = 2
+    ImagesContainer.Parent = ScreenGui
+
+    -- 创建三个居中排列的笑脸图片
+    for i = 1, 3 do
+        local ImageContainer = Instance.new("Frame")
+        ImageContainer.Name = "ImageContainer" .. i
+        ImageContainer.Size = UDim2.new(0.28, 0, 0.8, 0)
+        ImageContainer.BackgroundTransparency = 1
+        ImageContainer.ZIndex = 2
+        ImageContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+        
+        local SmileyImage = Instance.new("ImageLabel")
+        SmileyImage.Name = "Smiley"
+        SmileyImage.Size = UDim2.new(1, 0, 1, 0)
+        SmileyImage.Position = UDim2.new(0, 0, 0, 0)
+        SmileyImage.Image = BLACK_BG_IMAGE_ID
+        SmileyImage.ScaleType = Enum.ScaleType.Fit
+        SmileyImage.BackgroundTransparency = 1
+        SmileyImage.ZIndex = 2
+        SmileyImage.Parent = ImageContainer
+        
+        ImageContainer.Parent = ImagesContainer
     end
-    if Sound then
-        Sound:Stop()
-        Sound:Destroy()
+
+    -- 创建并播放音乐 - 设置音量为最大
+    Sound = Instance.new("Sound")
+    Sound.SoundId = MUSIC_ID
+    Sound.Name = "IdiotMusic"
+    Sound.Looped = true
+    Sound.Volume = 10  -- 最大音量
+    Sound.Parent = ScreenGui
+
+    task.wait(0.5)
+    Sound:Play()
+    
+    -- 重置闪烁变量
+    isWhite = true
+    elapsedTime = 0
+    
+    -- 连接闪烁效果
+    connection = RunService.RenderStepped:Connect(function(delta)
+        elapsedTime = elapsedTime + delta
+        
+        local currentFlashSpeed = flashSpeed + (math.random() * flashVariation * 2 - flashVariation)
+        
+        if elapsedTime >= currentFlashSpeed then
+            elapsedTime = 0
+            flash()
+        end
+    end)
+
+    -- 初始调整
+    task.wait(0.5)
+    adjustForScreen()
+    updateImagePositions()
+
+    -- 初始显示
+    flash()
+end
+
+-- 监听玩家重生
+local function onCharacterAdded(character)
+    task.wait(0.5)  -- 等待角色完全加载
+    createUI()
+end
+
+-- 监听屏幕大小变化
+local function onScreenSizeChanged()
+    if ScreenGui then
+        task.wait(0.1)
+        adjustForScreen()
     end
 end
 
--- 玩家离开时清理
-player.CharacterRemoving:Connect(cleanup)
+-- 等待玩家加载
+repeat task.wait() until player:IsDescendantOf(game)
 
--- 初始显示
-flash()
+-- 监听角色添加事件
+player.CharacterAdded:Connect(onCharacterAdded)
+
+-- 如果已经有角色，立即创建UI
+if player.Character then
+    onCharacterAdded(player.Character)
+else
+    -- 等待角色创建
+    player.CharacterAdded:Wait()
+    onCharacterAdded(player.Character)
+end
+
+-- 监听屏幕大小变化
+workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(onScreenSizeChanged)
